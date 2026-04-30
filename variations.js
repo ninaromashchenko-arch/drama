@@ -1,9 +1,6 @@
 // api/variations.js — image-to-image variations via Gemini image models
-// Accepts an optional base64 reference image; if absent, falls back to text-only.
 // Model routing: fast/balanced → gemini-3.1-flash-image-preview (Nano Banana 2)
 //                pro            → gemini-3-pro-image-preview    (Nano Banana Pro)
-
-export const config = { maxDuration: 60 };
 
 const MODEL_IDS = {
   fast:     'gemini-3.1-flash-image-preview',
@@ -18,7 +15,7 @@ const RATIO_LABELS = {
   '4:3':  'standard 4:3 aspect ratio',
 };
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -44,7 +41,6 @@ export default async function handler(req, res) {
     locRegion = '',
   } = req.body;
 
-  // Human-readable divergence description
   const divergenceDesc =
     divergence < 20 ? 'very subtle (nearly identical)'
     : divergence < 40 ? 'subtle'
@@ -56,8 +52,7 @@ export default async function handler(req, res) {
     ? 'use a different composition, angle, and framing from the original'
     : 'keep the same composition and framing, vary the details, lighting, and colour palette';
 
-  // Build prompt
-  let promptParts = [
+  const promptParts = [
     `Create a ${divergenceDesc} portrait variation of this reference image.`,
     varDesc,
   ];
@@ -75,7 +70,6 @@ export default async function handler(req, res) {
 
   const fullPrompt = promptParts.join('. ').replace(/\.+/g, '.').trim();
 
-  // Build content parts — text first, then optional image
   const contentParts = [{ text: fullPrompt }];
   if (refImageData) {
     contentParts.push({ inlineData: { mimeType: refImageMime, data: refImageData } });
@@ -118,4 +112,4 @@ export default async function handler(req, res) {
     console.error('[variations]', err);
     return res.status(500).json({ error: err.message });
   }
-}
+};

@@ -2,8 +2,5 @@
   "buildCommand": null,
   "outputDirectory": ".",
   "installCommand": null,
-  "framework": null,
-  "functions": {
-    "api/*.js": { "maxDuration": 10 }
-  }
+  "framework": null
 }

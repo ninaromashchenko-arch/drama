@@ -2,8 +2,6 @@
 // Model routing: fast/balanced → gemini-3.1-flash-image-preview (Nano Banana 2)
 //                pro            → gemini-3-pro-image-preview    (Nano Banana Pro)
 
-export const config = { maxDuration: 60 };
-
 const MODEL_IDS = {
   fast:     'gemini-3.1-flash-image-preview',
   balanced: 'gemini-3.1-flash-image-preview',
@@ -17,7 +15,7 @@ const RATIO_LABELS = {
   '4:3':  'standard 4:3 aspect ratio',
 };
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -40,7 +38,7 @@ export default async function handler(req, res) {
   } = req.body;
 
   // Build full prompt
-  let parts = [];
+  const parts = [];
   if (style)   parts.push(style);
   if (prompt)  parts.push(prompt);
   if (context) parts.push(`Scene: ${context}`);
@@ -95,4 +93,4 @@ export default async function handler(req, res) {
     console.error('[generate]', err);
     return res.status(500).json({ error: err.message });
   }
-}
+};
