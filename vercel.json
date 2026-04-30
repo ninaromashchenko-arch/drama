@@ -1,0 +1,6 @@
+{
+  "functions": {
+    "api/generate.js":    { "maxDuration": 10 },
+    "api/variations.js":  { "maxDuration": 10 }
+  }
+}
