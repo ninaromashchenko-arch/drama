@@ -12,7 +12,8 @@ const RATIO_LABELS = {
   '1:1':  'square 1:1 aspect ratio',
   '16:9': 'wide landscape 16:9 aspect ratio',
   '9:16': 'tall portrait 9:16 aspect ratio',
-  '4:3':  'standard 4:3 aspect ratio',
+  '4:3':  'standard landscape 4:3 aspect ratio',
+  '3:4':  'standard portrait 3:4 aspect ratio',
 };
 
 // Human-readable region → ethnicity descriptor used in the prompt lead.
@@ -85,6 +86,35 @@ function negativeTerms(ethnicity) {
   return `${common}. Avoid retaining the original subject's racial characteristics`;
 }
 
+// Text handling returns [positiveInstruction, negativeInstruction]
+function textHandlingPrompt(handling, region = '') {
+  const neg = 'do not generate random gibberish characters, distorted letters, blurry text, or illegible text artefacts';
+  switch (handling) {
+    case 'leave':
+      return [
+        'Preserve all existing text, signs, labels, and written characters in the image exactly as they appear in the original — do not alter, distort, translate, or remove any text',
+        neg,
+      ];
+    case 'translate':
+      return [
+        `Translate all visible text, signs, and labels in the image to the language spoken in ${region}. Render the translated text clearly and legibly in the same visual position and style`,
+        neg,
+      ];
+    case 'localize':
+      return [
+        `Replace all visible text and signage with culturally appropriate content for ${region}. Adapt any written copy, brand names, or labels so they feel native to ${region}`,
+        neg,
+      ];
+    case 'remove':
+      return [
+        'Remove all visible text, signs, labels, written characters, and typographic elements from the image. Leave clean surfaces where text previously appeared',
+        'do not leave text residue, partial letters, or ghost impressions of removed text',
+      ];
+    default:
+      return ['', ''];
+  }
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -148,13 +178,12 @@ module.exports = async function handler(req, res) {
     if (prompt)  extras.push(prompt);
     if (context) extras.push(context);
 
-    // Text handling for any visible text in the image.
-    if (locTextHandling === 'translate') extras.push(`Translate any visible text to the language of ${locRegion}`);
-    else if (locTextHandling === 'localize') extras.push(`Use culturally appropriate visual cues for ${locRegion}`);
-    else if (locTextHandling === 'remove')   extras.push('Remove all visible text from the image');
+    // Text handling
+    const [txtPos, txtNeg] = textHandlingPrompt(locTextHandling, locRegion);
+    if (txtPos) extras.push(txtPos);
 
-    // Negative framing at the end.
-    const negativeLine = negTxt;
+    // Combine all negative instructions
+    const negativeLine = [negTxt, txtNeg].filter(Boolean).join('. ');
 
     const fullPrompt = [leadLine, preserveLine, ...extras, negativeLine, RATIO_LABELS[ratio] || ratio]
       .filter(Boolean)
@@ -226,6 +255,11 @@ module.exports = async function handler(req, res) {
   if (prompt)  promptParts.push(prompt);
   if (context) promptParts.push(`Scene context: ${context}`);
   promptParts.push(RATIO_LABELS[ratio] || ratio);
+
+  // Text handling (standard path)
+  const [txtPos, txtNeg] = textHandlingPrompt(locTextHandling);
+  if (txtPos) promptParts.push(txtPos);
+  if (txtNeg) promptParts.push(`Avoid: ${txtNeg}`);
 
   const fullPrompt = promptParts.join('. ').replace(/\.+/g, '.').trim();
 

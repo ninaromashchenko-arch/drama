@@ -12,7 +12,8 @@ const RATIO_LABELS = {
   '1:1':  'square 1:1 aspect ratio',
   '16:9': 'wide landscape 16:9 aspect ratio',
   '9:16': 'tall portrait 9:16 aspect ratio',
-  '4:3':  'standard 4:3 aspect ratio',
+  '4:3':  'standard landscape 4:3 aspect ratio',
+  '3:4':  'standard portrait 3:4 aspect ratio',
 };
 
 module.exports = async function handler(req, res) {
