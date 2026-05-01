@@ -142,35 +142,41 @@ module.exports = async function handler(req, res) {
   } = req.body;
 
   // ─── Ethnicity-swap path ────────────────────────────────────────────────────
-  // When localization is ON and a region is provided, we completely restructure
-  // the prompt so ethnicity is the PRIMARY instruction rather than an afterthought.
-  // We also silently boost divergence so the model has enough "permission" to
-  // re-render facial features — a floor of 65 regardless of slider value.
+  // Goal: change only face / skin — everything geometric must survive intact.
+  //
+  // Divergence sweet-spot for identity swaps: 40–55.
+  //   • Too low  (<35): not enough permission to re-render skin/features.
+  //   • Too high (>60): model discards composition and invents a new pose.
+  // We clamp user slider to this range server-side regardless of what the UI sends.
 
   if (locEnabled && locRegion) {
     const eth    = ethnicityLabel(locRegion);
     const negTxt = negativeTerms(eth);
 
-    // Effective divergence: user slider OR 65 minimum (significant change needed
-    // for face/skin re-rendering to actually take hold).
-    const effectiveDivergence = Math.max(divergence, 65);
-    const strengthDesc =
-      effectiveDivergence < 60 ? 'moderate'
-      : effectiveDivergence < 80 ? 'significant'
-      : 'dramatic';
+    // Clamp divergence: floor 40 (enough to change features), ceiling 55 (pose safe).
+    const effectiveDivergence = Math.min(Math.max(divergence, 40), 55);
 
-    // Lead line — ethnicity transformation comes FIRST so the model weights it most.
+    // Lead line — ethnicity is the PRIMARY instruction, but pose is named explicitly.
     const leadLine =
-      `TRANSFORM this portrait: change the subject to a ${eth} person. ` +
-      `Render authentic ${eth} facial bone structure, skin tone, eye shape, nose shape, ` +
-      `and ethnic features with photorealistic accuracy. ` +
-      `This is a ${strengthDesc} re-rendering of facial features only.`;
+      `TRANSFORM this portrait: re-render the subject as a ${eth} person ` +
+      `with the EXACT SAME head tilt, camera angle, eye gaze direction, and facial expression ` +
+      `as the reference image. ` +
+      `Render authentic ${eth} skin tone, facial bone structure, eye shape, and nose shape ` +
+      `with photorealistic accuracy.`;
 
-    // Preserve line — explicit list of what must NOT change.
+    // Preserve line — call out every geometric element individually.
     const preserveLine =
-      `PRESERVE UNCHANGED: exact pose, body position, clothing, hairstyle silhouette, ` +
-      `lighting direction, background, and overall composition. ` +
-      `Only the person's face and skin should change.`;
+      `STRUCTURAL LOCK — do not alter any of the following: ` +
+      `the head rotation angle, jaw tilt, shoulder position, eye gaze vector, ` +
+      `brow height, mouth pose, neck angle, and body framing. ` +
+      `Keep identical: clothing, hairstyle silhouette, background, and overall composition.`;
+
+    // Photo-realism / grain matching — prevents the "too sharp face on grainy background" seam.
+    const grainLine =
+      `MATCH the original photo's film grain, lens bokeh, focal depth, ` +
+      `colour temperature, and ambient lighting exactly. ` +
+      `The new face must blend seamlessly with the existing background — ` +
+      `do not introduce studio-clean sharpness or artificial skin smoothing.`;
 
     // Optional scene/style additions.
     const extras = [];
@@ -185,13 +191,13 @@ module.exports = async function handler(req, res) {
     // Combine all negative instructions
     const negativeLine = [negTxt, txtNeg].filter(Boolean).join('. ');
 
-    const fullPrompt = [leadLine, preserveLine, ...extras, negativeLine, RATIO_LABELS[ratio] || ratio]
+    const fullPrompt = [leadLine, preserveLine, grainLine, ...extras, negativeLine, RATIO_LABELS[ratio] || ratio]
       .filter(Boolean)
       .join('. ')
       .replace(/\.{2,}/g, '.')
       .trim();
 
-    console.log('[variations:loc] ethnicity=%s effectiveDivergence=%d', eth, effectiveDivergence);
+    console.log('[variations:loc] ethnicity=%s effectiveDivergence=%d (clamped 40-55)', eth, effectiveDivergence);
     console.log('[variations:loc] prompt=', fullPrompt.slice(0, 200));
 
     const contentParts = [{ text: fullPrompt }];
