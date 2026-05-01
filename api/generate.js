@@ -37,21 +37,31 @@ module.exports = async function handler(req, res) {
     locRegion = '',
   } = req.body;
 
-  // Build full prompt
-  const parts = [];
-  if (style)   parts.push(style);
-  if (prompt)  parts.push(prompt);
-  if (context) parts.push(`Scene: ${context}`);
-  parts.push(RATIO_LABELS[ratio] || ratio);
-
+  // When localization is ON, the region/ethnicity leads the prompt so the model
+  // prioritises it rather than treating it as a stylistic footnote.
+  let fullPrompt;
   if (locEnabled && locRegion) {
-    parts.push(`Localized for ${locRegion}`);
-    if (locTextHandling === 'translate') parts.push('translate any visible text to the local language');
-    else if (locTextHandling === 'localize') parts.push('use culturally appropriate visual elements and aesthetics for this region');
-    else if (locTextHandling === 'remove')  parts.push('no text or writing visible in the image');
+    const eth = locRegion.charAt(0).toUpperCase() + locRegion.slice(1);
+    const parts = [
+      `A person of ${eth} ethnicity and heritage`,
+    ];
+    if (style)   parts.push(style);
+    if (prompt)  parts.push(prompt);
+    if (context) parts.push(context);
+    if (locTextHandling === 'translate') parts.push(`text in the image should appear in the language of ${locRegion}`);
+    else if (locTextHandling === 'localize') parts.push(`use culturally appropriate visual elements for ${locRegion}`);
+    else if (locTextHandling === 'remove')   parts.push('no visible text in the image');
+    parts.push(RATIO_LABELS[ratio] || ratio);
+    fullPrompt = parts.join(', ').trim();
+  } else {
+    const parts = [];
+    if (style)   parts.push(style);
+    if (prompt)  parts.push(prompt);
+    if (context) parts.push(`Scene: ${context}`);
+    parts.push(RATIO_LABELS[ratio] || ratio);
+    fullPrompt = parts.join('. ').replace(/\.+/g, '.').trim();
   }
 
-  const fullPrompt = parts.join('. ').replace(/\.+/g, '.').trim();
   if (!fullPrompt) {
     return res.status(400).json({ error: 'No prompt provided' });
   }
