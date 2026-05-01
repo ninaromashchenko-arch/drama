@@ -264,32 +264,6 @@ const Sidebar=({state,set})=>{
             </div>
           </Section>
 
-          {/* Localizer */}
-          <div style={{border:'1px solid',borderColor:state.localizer?'var(--accent-line)':'var(--line-1)',background:state.localizer?'var(--accent-soft)':'var(--bg-2)',borderRadius:10,marginBottom:18,overflow:'hidden',transition:'all .2s'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 13px'}}>
-              <div>
-                <div style={{display:'flex',alignItems:'center',gap:7}}>
-                  <span style={{color:state.localizer?'var(--accent)':'var(--text-2)'}}><Icon.Eye size={14}/></span>
-                  <span style={{fontSize:13,fontWeight:600,color:'var(--text-1)'}}>Localizer</span>
-                  {state.localizer&&<span className="mono" style={{fontSize:9.5,padding:'2px 7px',borderRadius:999,background:'var(--accent-soft)',border:'1px solid var(--accent-line)',color:'var(--accent)'}}>ACTIVE</span>}
-                </div>
-                <div style={{fontSize:11,color:'var(--text-3)',marginTop:2,paddingLeft:21}}>Ethnicity swap · preserves pose</div>
-              </div>
-              <Toggle value={state.localizer} onChange={v=>set({localizer:v})} options={[{value:false,label:'Off'},{value:true,label:'On'}]}/>
-            </div>
-            {state.localizer&&(
-              <div style={{padding:'0 13px 13px',display:'flex',flexDirection:'column',gap:10}}>
-                <div>
-                  <div style={{fontSize:9.5,fontWeight:600,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--text-3)',marginBottom:6}}>Target Identity</div>
-                  <Field rows={2} placeholder="e.g. Brazilian heritage, Southeast Asian, West African…" value={state.localizerTarget} onChange={e=>set({localizerTarget:e.target.value})}/>
-                </div>
-                <div style={{display:'flex',alignItems:'center',gap:7,padding:'8px 10px',borderRadius:7,background:'var(--bg-3)',border:'1px solid var(--line-1)'}}>
-                  <span style={{color:'var(--accent)',flexShrink:0}}><Icon.Layers size={12}/></span>
-                  <span style={{fontSize:11,color:'var(--text-3)',lineHeight:1.4}}>Divergence auto-locked to <span style={{color:'var(--text-2)',fontWeight:500}}>28</span> · Same composition forced</span>
-                </div>
-              </div>
-            )}
-          </div>
         </>)}
 
         {/* Localization */}
@@ -297,7 +271,7 @@ const Sidebar=({state,set})=>{
           <div onClick={()=>setLocOpen(!locOpen)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 13px',cursor:'pointer',userSelect:'none'}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
               <span style={{color:state.locEnabled?'var(--accent)':'var(--text-2)'}}><Icon.Globe size={14}/></span>
-              <span style={{fontSize:13,fontWeight:600,color:'var(--text-1)'}}>Localization</span>
+              <span style={{fontSize:13,fontWeight:600,color:'var(--text-1)'}}>Localization / Ethnicity</span>
               {state.locEnabled&&<span className="mono" style={{fontSize:9.5,padding:'2px 7px',borderRadius:999,background:'var(--accent-soft)',border:'1px solid var(--accent-line)',color:'var(--accent)'}}>ACTIVE</span>}
             </div>
             <div style={{display:'flex',alignItems:'center',gap:8}} onClick={e=>e.stopPropagation()}>
@@ -331,8 +305,14 @@ const Sidebar=({state,set})=>{
               </div>
               {!state.locMulti?(
                 <div>
-                  <div style={{fontSize:9.5,fontWeight:600,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--text-3)',marginBottom:6}}>Region</div>
-                  <SInput value={state.locRegion} onChange={e=>set({locRegion:e.target.value})} placeholder="Country / region"/>
+                  <div style={{fontSize:9.5,fontWeight:600,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--text-3)',marginBottom:6}}>Region / Ethnicity</div>
+                  <SInput value={state.locRegion} onChange={e=>set({locRegion:e.target.value})} placeholder="e.g. Philippines, Nigerian, Brazilian…"/>
+                  {state.locEnabled&&state.locRegion&&(
+                    <div style={{display:'flex',alignItems:'center',gap:6,marginTop:7,padding:'7px 10px',borderRadius:7,background:'#7aa2ff0a',border:'1px solid var(--accent-line)'}}>
+                      <span style={{color:'var(--accent)',flexShrink:0}}><Icon.Sparkle size={11}/></span>
+                      <span style={{fontSize:10.5,color:'var(--text-3)',lineHeight:1.4}}>Ethnicity swap active — divergence boosted to min <span style={{color:'var(--accent)',fontWeight:500}}>65</span> server-side</span>
+                    </div>
+                  )}
                 </div>
               ):(
                 <div>
@@ -673,8 +653,6 @@ const App=()=>{
     refImageName:null,
     divergence:35,
     varType:'alternatives',
-    localizer:false,
-    localizerTarget:'',
     locEnabled:false,
     locMulti:false,
     locTextHandling:'leave',
@@ -759,15 +737,8 @@ const App=()=>{
       if(isVar){
         body.refImageData=state.refImageData;
         body.refImageMime=state.refImageMime;
-        // Localizer: lock settings and inject ethnicity prompt
-        if(state.localizer&&state.localizerTarget){
-          body.divergence=28;
-          body.varType='variations';
-          body.context=`High-quality portrait of a person with ${state.localizerTarget} features. Preserve the exact same pose, clothing, hairstyle, lighting, and background. Only change facial features, skin tone, and ethnicity-specific characteristics.`;
-        }else{
-          body.divergence=state.divergence;
-          body.varType=state.varType;
-        }
+        body.divergence=state.divergence;
+        body.varType=state.varType;
       }
       const snap={model:state.model,mode:state.mode};
       const images=await callAPI(isVar?'/api/variations':'/api/generate',body);
