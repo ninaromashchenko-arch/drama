@@ -336,14 +336,18 @@ const Sidebar=({state,set})=>{
             <button onClick={()=>set({count:Math.min(4,state.count+1)})} style={{width:26,height:26,borderRadius:6,border:'1px solid var(--line-1)',background:'var(--bg-2)',color:'var(--text-2)',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon.Plus size={11} sw={2}/></button>
           </div>
         </div>
-        <button onClick={()=>state.generate()} disabled={state.generating} style={{width:'100%',padding:'12px',borderRadius:9,background:state.generating?'var(--bg-3)':'linear-gradient(180deg,#8eb4ff,#5e8cff)',color:state.generating?'var(--text-3)':'#0a0e1c',fontSize:13.5,fontWeight:600,letterSpacing:'-.01em',display:'flex',alignItems:'center',justifyContent:'center',gap:7,cursor:state.generating?'wait':'pointer',boxShadow:state.generating?'none':'0 1px 0 #ffffff40 inset,0 8px 24px #5e8cff30',transition:'all .15s'}}>
-          {state.generating?(<><span style={{width:12,height:12,border:'2px solid #ffffff30',borderTopColor:'var(--text-2)',borderRadius:'50%',display:'inline-block',animation:'spin .7s linear infinite'}}/> Generating…</>):(<><Icon.Sparkle size={13} sw={2}/> Generate {state.count} {state.mode==='variations'?'Variation':'Image'}{state.count>1?'s':''}</>)}
+        {(()=>{const cost=state.count*3;const notEnough=state.credits<cost&&!state.generating;return(<>
+        <button onClick={()=>state.generate()} disabled={state.generating||notEnough} style={{width:'100%',padding:'12px',borderRadius:9,background:state.generating?'var(--bg-3)':notEnough?'var(--bg-3)':'linear-gradient(180deg,#8eb4ff,#5e8cff)',color:state.generating||notEnough?'var(--text-3)':'#0a0e1c',fontSize:13.5,fontWeight:600,letterSpacing:'-.01em',display:'flex',alignItems:'center',justifyContent:'center',gap:7,cursor:state.generating?'wait':notEnough?'not-allowed':'pointer',boxShadow:state.generating||notEnough?'none':'0 1px 0 #ffffff40 inset,0 8px 24px #5e8cff30',transition:'all .15s'}}>
+          {state.generating?(<><span style={{width:12,height:12,border:'2px solid #ffffff30',borderTopColor:'var(--text-2)',borderRadius:'50%',display:'inline-block',animation:'spin .7s linear infinite'}}/> Generating…</>):notEnough?(<><Icon.AlertCircle size={13}/> Not enough credits</>):(<><Icon.Sparkle size={13} sw={2}/> Generate {state.count} {state.mode==='variations'?'Variation':'Image'}{state.count>1?'s':''}</>)}
         </button>
         <div style={{display:'flex',justifyContent:'center',gap:8,marginTop:9}}>
-          <span className="mono" style={{fontSize:10,color:'var(--text-3)'}}>~{state.count*3} credits</span>
+          <span className="mono" style={{fontSize:10,color:notEnough?'var(--danger)':'var(--text-3)'}}>−{cost} credits</span>
           <span style={{fontSize:10,color:'var(--text-4)'}}>·</span>
           <span className="mono" style={{fontSize:10,color:'var(--text-3)'}}>~{Math.round(state.count*2.5)}s</span>
+          <span style={{fontSize:10,color:'var(--text-4)'}}>·</span>
+          <span className="mono" style={{fontSize:10,color:notEnough?'var(--danger)':'var(--text-3)'}}>{state.credits} left</span>
         </div>
+        </>);})()}
       </div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </aside>
@@ -558,6 +562,7 @@ const App=()=>{
     locRegion:'Philippines',
     locRegions:['Lagos, NG','Accra, GH'],
     count:3,
+    credits:100,
     generating:false,
     results:[],
     selected:[],
@@ -580,9 +585,14 @@ const App=()=>{
     locRegion:s.locMulti?s.locRegions.join(', '):s.locRegion,
   });
 
-  const callAPI=async(endpoint,body,setState_)=>{
+  const callAPI=async(endpoint,body)=>{
     const res=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const data=await res.json();
+    const text=await res.text();
+    let data;
+    try{data=JSON.parse(text);}catch{
+      if(res.status===404)throw new Error(`API route not found (${endpoint}). Make sure the api/ folder is committed to your GitHub repo and re-deployed on Vercel.`);
+      throw new Error(`Server returned an unexpected response (HTTP ${res.status}). Check that the api/ folder is deployed.`);
+    }
     if(!res.ok)throw new Error(data.error||`Request failed (${res.status})`);
     return data.images;
   };
@@ -600,31 +610,15 @@ const App=()=>{
         body.varType=state.varType;
       }
       const images=await callAPI(isVar?'/api/variations':'/api/generate',body);
-      set({results:images,generating:false});
+      const cost=state.count*3;
+      set({results:images,generating:false,credits:Math.max(0,state.credits-cost)});
     }catch(err){
       set({generating:false,error:err.message});
     }
   };
 
-  const regenAll=async()=>{
-    if(state.generating)return;
-    // Capture current state snapshot for the closure
-    setState(s=>{
-      if(s.generating)return s;
-      (async()=>{
-        try{
-          const isVar=s.mode==='variations';
-          const body={...baseBody(s)};
-          if(isVar){body.refImageData=s.refImageData;body.refImageMime=s.refImageMime;body.divergence=s.divergence;body.varType=s.varType;}
-          const images=await callAPI(isVar?'/api/variations':'/api/generate',body);
-          setState(prev=>({...prev,results:images,generating:false}));
-        }catch(err){
-          setState(prev=>({...prev,generating:false,error:err.message}));
-        }
-      })();
-      return{...s,generating:true,results:[],selected:[],error:null};
-    });
-  };
+  // regenAll simply re-runs generate with current settings
+  const regenAll=generate;
 
   const iterateFrom=async img=>{
     if(state.generating)return;
@@ -633,7 +627,8 @@ const App=()=>{
     try{
       const body={...baseBody(state),refImageData:img.data,refImageMime:img.mimeType,divergence:newDiv,varType:state.varType};
       const images=await callAPI('/api/variations',body);
-      set({results:images,generating:false});
+      const cost=state.count*3;
+      set({results:images,generating:false,credits:Math.max(0,state.credits-cost)});
     }catch(err){
       set({generating:false,error:err.message});
     }
@@ -658,6 +653,12 @@ const App=()=>{
           ))}
         </nav>
         <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:10}}>
+          {/* Credits badge */}
+          <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11.5,padding:'5px 11px',borderRadius:999,background:state.credits<10?'#f871710f':'var(--bg-2)',border:'1px solid',borderColor:state.credits<10?'#f8717155':'var(--line-1)',color:state.credits<10?'var(--danger)':'var(--text-2)',transition:'all .3s'}}>
+            <span style={{width:6,height:6,borderRadius:'50%',background:state.credits<10?'var(--danger)':'var(--warn)',boxShadow:state.credits<10?'0 0 8px #f8717180':'0 0 8px #fbbf2480'}}/>
+            <span className="mono" style={{fontSize:10.5}}>{state.credits} credits</span>
+          </div>
+          {/* Model badge */}
           <div style={{display:'flex',alignItems:'center',gap:7,fontSize:11.5,color:'var(--text-2)',padding:'5px 11px',borderRadius:999,background:'var(--bg-2)',border:'1px solid var(--line-1)'}}>
             <span style={{width:6,height:6,borderRadius:'50%',background:'var(--success)',boxShadow:'0 0 8px #4ade8080'}}/>
             <span className="mono" style={{fontSize:10.5}}>{state.model==='pro'?'Nano Banana Pro':'Nano Banana 2'} · {state.model==='fast'?'Flash':state.model==='pro'?'Pro':'Balanced'}</span>
@@ -680,7 +681,27 @@ const App=()=>{
   );
 };
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+class ErrorBoundary extends React.Component{
+  constructor(p){super(p);this.state={err:null};}
+  static getDerivedStateFromError(e){return{err:e};}
+  componentDidCatch(e,i){console.error('[Drama Pics]',e,i);}
+  render(){
+    const{err}=this.state;
+    if(err){return(
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100vh',background:'#08090c',color:'#e8eaf0',gap:18,fontFamily:'Inter,system-ui,sans-serif',padding:40,textAlign:'center'}}>
+        <div style={{width:52,height:52,borderRadius:14,background:'#f871710f',border:'1px solid #f8717155',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22}}>⚠</div>
+        <div>
+          <div style={{fontSize:18,fontWeight:600,marginBottom:8}}>Something went wrong</div>
+          <div style={{fontSize:13,color:'#a4abbc',maxWidth:420,lineHeight:1.6,marginBottom:20}}>{err.message}</div>
+          <button onClick={()=>this.setState({err:null})} style={{padding:'9px 24px',borderRadius:8,background:'linear-gradient(180deg,#8eb4ff,#5e8cff)',color:'#0a0e1c',fontWeight:600,fontSize:13,border:'none',cursor:'pointer'}}>Reload app</button>
+        </div>
+      </div>
+    );}
+    return this.props.children;
+  }
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><App/></ErrorBoundary>);
 </script>
 </body>
 </html>
