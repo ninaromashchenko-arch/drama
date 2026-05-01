@@ -263,6 +263,33 @@ const Sidebar=({state,set})=>{
               ))}
             </div>
           </Section>
+
+          {/* Localizer */}
+          <div style={{border:'1px solid',borderColor:state.localizer?'var(--accent-line)':'var(--line-1)',background:state.localizer?'var(--accent-soft)':'var(--bg-2)',borderRadius:10,marginBottom:18,overflow:'hidden',transition:'all .2s'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'11px 13px'}}>
+              <div>
+                <div style={{display:'flex',alignItems:'center',gap:7}}>
+                  <span style={{color:state.localizer?'var(--accent)':'var(--text-2)'}}><Icon.Eye size={14}/></span>
+                  <span style={{fontSize:13,fontWeight:600,color:'var(--text-1)'}}>Localizer</span>
+                  {state.localizer&&<span className="mono" style={{fontSize:9.5,padding:'2px 7px',borderRadius:999,background:'var(--accent-soft)',border:'1px solid var(--accent-line)',color:'var(--accent)'}}>ACTIVE</span>}
+                </div>
+                <div style={{fontSize:11,color:'var(--text-3)',marginTop:2,paddingLeft:21}}>Ethnicity swap · preserves pose</div>
+              </div>
+              <Toggle value={state.localizer} onChange={v=>set({localizer:v})} options={[{value:false,label:'Off'},{value:true,label:'On'}]}/>
+            </div>
+            {state.localizer&&(
+              <div style={{padding:'0 13px 13px',display:'flex',flexDirection:'column',gap:10}}>
+                <div>
+                  <div style={{fontSize:9.5,fontWeight:600,letterSpacing:'.08em',textTransform:'uppercase',color:'var(--text-3)',marginBottom:6}}>Target Identity</div>
+                  <Field rows={2} placeholder="e.g. Brazilian heritage, Southeast Asian, West African…" value={state.localizerTarget} onChange={e=>set({localizerTarget:e.target.value})}/>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:7,padding:'8px 10px',borderRadius:7,background:'var(--bg-3)',border:'1px solid var(--line-1)'}}>
+                  <span style={{color:'var(--accent)',flexShrink:0}}><Icon.Layers size={12}/></span>
+                  <span style={{fontSize:11,color:'var(--text-3)',lineHeight:1.4}}>Divergence auto-locked to <span style={{color:'var(--text-2)',fontWeight:500}}>28</span> · Same composition forced</span>
+                </div>
+              </div>
+            )}
+          </div>
         </>)}
 
         {/* Localization */}
@@ -360,7 +387,7 @@ window.Sidebar=Sidebar;
 const ratioToAspect=r=>({'1:1':'1/1','16:9':'16/9','9:16':'9/16','4:3':'4/3'}[r]||'1/1');
 const iconBtnStyle=active=>({width:24,height:24,borderRadius:5,background:active?'var(--accent-soft)':'#00000080',border:'1px solid',borderColor:active?'var(--accent-line)':'#ffffff20',color:active?'var(--accent)':'#fff',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center'});
 
-const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onRemove,onCompare,original})=>{
+const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRemove,onCompare,original})=>{
   const[hover,setHover]=React.useState(false);
   const[imgError,setImgError]=React.useState(false);
   const src=image.data?`data:${image.mimeType||'image/png'};base64,${image.data}`:null;
@@ -382,7 +409,7 @@ const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onRemove,onCompa
           <span className="mono" style={{position:'absolute',top:9,right:9,fontSize:9.5,padding:'3px 8px',borderRadius:999,background:'#00000080',color:'#fff',backdropFilter:'blur(6px)',letterSpacing:'.06em'}}>ORIGINAL</span>
         ):(
           <div style={{position:'absolute',top:9,right:9,display:'flex',gap:4,opacity:hover?1:0,transition:'opacity .15s'}}>
-            <button onClick={onPin} title={image.pinned?'Unpin':'Pin'} style={iconBtnStyle(image.pinned)}><Icon.Star size={12} fill={image.pinned?'currentColor':'none'}/></button>
+            <button onClick={()=>{onPin();if(!image.pinned&&onSaveToLib)onSaveToLib(image);}} title={image.pinned?'Unpin (saved to Library)':'Pin to Library'} style={iconBtnStyle(image.pinned)}><Icon.Star size={12} fill={image.pinned?'currentColor':'none'}/></button>
             <button onClick={onCompare} title="Compare" style={iconBtnStyle(false)}><Icon.Compare size={12}/></button>
           </div>
         )}
@@ -420,7 +447,7 @@ const ToolbarBtn=({children,icon,onClick,danger})=>{
 const Grid=({state,results,generating,ratio,select,togglePin,remove,set,view})=>{
   const cols=view==='compact'?'repeat(4,1fr)':view==='wide'?'repeat(2,1fr)':'repeat(3,1fr)';
   return(<div style={{display:'grid',gridTemplateColumns:cols,gap:12,alignContent:'start'}}>
-    {results.map(img=>(<ImageCard key={img.id} image={img} ratio={ratio} selected={state.selected.includes(img.id)} onSelect={()=>select(img.id)} onPin={()=>togglePin(img.id)} onRemove={()=>remove(img.id)} onIterate={()=>state.iterateFrom(img)} onCompare={()=>{}}/>))}
+    {results.map(img=>(<ImageCard key={img.id} image={img} ratio={ratio} selected={state.selected.includes(img.id)} onSelect={()=>select(img.id)} onPin={()=>togglePin(img.id)} onSaveToLib={state.saveToLibrary} onRemove={()=>remove(img.id)} onIterate={()=>state.iterateFrom(img)} onCompare={()=>{}}/>))}
     {generating&&Array.from({length:state.count}).map((_,i)=>(<SkeletonCard key={'sk'+i} ratio={ratio}/>))}
   </div>);
 };
@@ -515,6 +542,96 @@ const Results=({state,set})=>{
   );
 };
 window.Results=Results;
+
+/* ── History & Library views ── */
+const timeAgo=t=>{const s=Math.floor((Date.now()-t)/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';};
+
+const MediaCard=({item,onUseAsRef,onSave,onRemove,saveLabel='Save to Library'})=>{
+  const[hover,setHover]=React.useState(false);
+  const src=item.data?`data:${item.mimeType||'image/png'};base64,${item.data}`:null;
+  return(
+    <div onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} style={{borderRadius:10,overflow:'hidden',border:'1px solid var(--line-1)',background:'var(--bg-2)'}}>
+      <div style={{aspectRatio:'1/1',background:'linear-gradient(135deg,#1f2a4f,#4a3270)',position:'relative',overflow:'hidden'}}>
+        {src&&<img src={src} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>}
+        <div style={{position:'absolute',inset:0,background:'linear-gradient(to top,#000000cc,transparent 50%)',opacity:hover?1:0,transition:'opacity .15s',padding:10,display:'flex',flexDirection:'column',justifyContent:'flex-end',gap:5}}>
+          <div style={{display:'flex',gap:4}}>
+            <button onClick={()=>onUseAsRef(item)} style={{flex:1,padding:'6px',borderRadius:6,background:'var(--accent)',color:'#0a0e1c',fontSize:11,fontWeight:600,border:'none',cursor:'pointer'}}>Use as ref</button>
+            {onSave&&<button onClick={()=>onSave(item)} style={{padding:'6px 8px',borderRadius:6,background:'#ffffff20',color:'#fff',fontSize:11,border:'none',cursor:'pointer',backdropFilter:'blur(6px)'}}><Icon.Star size={12}/></button>}
+            {onRemove&&<button onClick={()=>onRemove(item)} style={{padding:'6px 8px',borderRadius:6,background:'#f871710f',color:'var(--danger)',fontSize:11,border:'1px solid #f8717155',cursor:'pointer'}}><Icon.Trash size={12}/></button>}
+            <button title="Download" onClick={()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-${item.id||Date.now()}.png`;a.click();}} style={{...iconBtnStyle(false),background:'#00000060'}}><Icon.Download size={12}/></button>
+          </div>
+        </div>
+      </div>
+      <div style={{padding:'8px 10px'}}>
+        <div style={{fontSize:11,color:'var(--text-2)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.label||item.prompt||item.context||'(no prompt)'}</div>
+        <div style={{fontSize:10,color:'var(--text-4)',marginTop:2,display:'flex',gap:6}}><span>{timeAgo(item.timestamp)}</span><span>·</span><span>{item.model==='pro'?'Pro':'Fast'}</span></div>
+      </div>
+    </div>
+  );
+};
+
+const HistoryView=({state,set})=>{
+  const h=state.history||[];
+  const useAsRef=item=>set({nav:'workspace',mode:'variations',refImage:true,refImageData:item.data,refImageMime:item.mimeType,refImagePreview:`data:${item.mimeType||'image/png'};base64,${item.data}`,refImageName:'from-history.jpg'});
+  const saveToLib=item=>{
+    const lib=[{...item,timestamp:item.timestamp||Date.now()},...(state.library||[]).filter(l=>l.id!==item.id)];
+    set({library:lib});
+    try{localStorage.setItem('drama_library',JSON.stringify(lib));}catch(e){}
+  };
+  return(
+    <main style={{flex:1,display:'flex',flexDirection:'column',background:'var(--bg-0)',overflow:'hidden'}}>
+      <div style={{padding:'14px 22px',borderBottom:'1px solid var(--line-1)',display:'flex',alignItems:'center',gap:10,background:'var(--bg-1)'}}>
+        <span className="display" style={{fontSize:16,color:'var(--text-1)'}}>History</span>
+        <span className="mono" style={{fontSize:10.5,color:'var(--text-3)',padding:'2px 8px',borderRadius:999,border:'1px solid var(--line-1)',background:'var(--bg-2)'}}>{h.length} items</span>
+        {h.length>0&&<button onClick={()=>{set({history:[]});try{localStorage.removeItem('drama_history');}catch(e){}}} style={{marginLeft:'auto',fontSize:11,color:'var(--text-3)',padding:'4px 10px',borderRadius:6,border:'1px solid var(--line-1)',background:'var(--bg-2)'}}>Clear history</button>}
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:22}}>
+        {h.length===0?(
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:14}}>
+            <div style={{width:56,height:56,borderRadius:14,border:'1.5px dashed var(--line-3)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-3)'}}><Icon.Layers size={22} sw={1.4}/></div>
+            <div style={{textAlign:'center'}}><div className="display" style={{fontSize:18,color:'var(--text-1)',marginBottom:4}}>No history yet</div><div style={{fontSize:12.5,color:'var(--text-3)',lineHeight:1.5}}>Images you generate appear here automatically.</div></div>
+          </div>
+        ):(
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,alignContent:'start'}}>
+            {h.map(item=><MediaCard key={item.id} item={item} onUseAsRef={useAsRef} onSave={saveToLib}/>)}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+};
+
+const LibraryView=({state,set})=>{
+  const lib=state.library||[];
+  const useAsRef=item=>set({nav:'workspace',mode:'variations',refImage:true,refImageData:item.data,refImageMime:item.mimeType,refImagePreview:`data:${item.mimeType||'image/png'};base64,${item.data}`,refImageName:'from-library.jpg'});
+  const remove=item=>{
+    const next=lib.filter(l=>l.id!==item.id);
+    set({library:next});
+    try{localStorage.setItem('drama_library',JSON.stringify(next));}catch(e){}
+  };
+  return(
+    <main style={{flex:1,display:'flex',flexDirection:'column',background:'var(--bg-0)',overflow:'hidden'}}>
+      <div style={{padding:'14px 22px',borderBottom:'1px solid var(--line-1)',display:'flex',alignItems:'center',gap:10,background:'var(--bg-1)'}}>
+        <span className="display" style={{fontSize:16,color:'var(--text-1)'}}>Library</span>
+        <span className="mono" style={{fontSize:10.5,color:'var(--text-3)',padding:'2px 8px',borderRadius:999,border:'1px solid var(--line-1)',background:'var(--bg-2)'}}>{lib.length} saved</span>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:22}}>
+        {lib.length===0?(
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',gap:14}}>
+            <div style={{width:56,height:56,borderRadius:14,border:'1.5px dashed var(--line-3)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-3)'}}><Icon.Star size={22} sw={1.4}/></div>
+            <div style={{textAlign:'center'}}><div className="display" style={{fontSize:18,color:'var(--text-1)',marginBottom:4}}>Library is empty</div><div style={{fontSize:12.5,color:'var(--text-3)',lineHeight:1.5}}>Pin images from Workspace to save them here.</div></div>
+          </div>
+        ):(
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,alignContent:'start'}}>
+            {lib.map(item=><MediaCard key={item.id} item={item} onUseAsRef={useAsRef} onRemove={remove}/>)}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+};
+window.HistoryView=HistoryView;
+window.LibraryView=LibraryView;
 </script>
 
 <!-- ═══════════ APP ═══════════ -->
@@ -541,6 +658,7 @@ const App=()=>{
   },[tweaks.fontPair]);
 
   const[state,setState]=React.useState({
+    nav:'workspace',
     mode:'variations',
     model:'fast',
     style:'Face Close-Up',
@@ -555,11 +673,13 @@ const App=()=>{
     refImageName:null,
     divergence:35,
     varType:'alternatives',
-    locEnabled:true,
-    locMulti:true,
+    localizer:false,
+    localizerTarget:'',
+    locEnabled:false,
+    locMulti:false,
     locTextHandling:'leave',
-    locRegion:'Philippines',
-    locRegions:['Lagos, NG','Accra, GH'],
+    locRegion:'',
+    locRegions:[],
     count:3,
     credits:100,
     generating:false,
@@ -567,7 +687,21 @@ const App=()=>{
     selected:[],
     view:'default',
     error:null,
+    history:[],
+    library:[],
   });
+
+  // Load persisted data from localStorage on mount
+  React.useEffect(()=>{
+    try{
+      const h=localStorage.getItem('drama_history');
+      const l=localStorage.getItem('drama_library');
+      const patch={};
+      if(h){try{patch.history=JSON.parse(h);}catch(e){}}
+      if(l){try{patch.library=JSON.parse(l);}catch(e){}}
+      if(Object.keys(patch).length)set(patch);
+    }catch(e){}
+  },[]);
 
   const set=patch=>setState(s=>({...s,...patch}));
 
@@ -596,6 +730,26 @@ const App=()=>{
     return data.images;
   };
 
+  const saveHistory=(images,body,snap)=>{
+    const entries=images.map(img=>({...img,label:body.context||body.prompt||body.style||'',prompt:body.prompt||'',context:body.context||'',model:snap.model,mode:snap.mode,timestamp:Date.now()}));
+    setState(prev=>{
+      const next=[...entries,...prev.history].slice(0,24);
+      try{localStorage.setItem('drama_history',JSON.stringify(next));}catch(e){
+        try{localStorage.setItem('drama_history',JSON.stringify(next.slice(0,6)));}catch(e2){}
+      }
+      return{...prev,history:next};
+    });
+  };
+
+  const saveToLibrary=img=>{
+    const entry={...img,label:state.prompt||state.context||'',prompt:state.prompt||'',context:state.context||'',model:state.model,timestamp:Date.now()};
+    setState(prev=>{
+      const next=[entry,...prev.library.filter(l=>l.id!==entry.id)];
+      try{localStorage.setItem('drama_library',JSON.stringify(next));}catch(e){}
+      return{...prev,library:next};
+    });
+  };
+
   const generate=async()=>{
     if(state.generating)return;
     set({generating:true,results:[],selected:[],error:null});
@@ -605,11 +759,20 @@ const App=()=>{
       if(isVar){
         body.refImageData=state.refImageData;
         body.refImageMime=state.refImageMime;
-        body.divergence=state.divergence;
-        body.varType=state.varType;
+        // Localizer: lock settings and inject ethnicity prompt
+        if(state.localizer&&state.localizerTarget){
+          body.divergence=28;
+          body.varType='variations';
+          body.context=`High-quality portrait of a person with ${state.localizerTarget} features. Preserve the exact same pose, clothing, hairstyle, lighting, and background. Only change facial features, skin tone, and ethnicity-specific characteristics.`;
+        }else{
+          body.divergence=state.divergence;
+          body.varType=state.varType;
+        }
       }
+      const snap={model:state.model,mode:state.mode};
       const images=await callAPI(isVar?'/api/variations':'/api/generate',body);
       const cost=state.count*3;
+      saveHistory(images,body,snap);
       set({results:images,generating:false,credits:Math.max(0,state.credits-cost)});
     }catch(err){
       set({generating:false,error:err.message});
@@ -625,15 +788,17 @@ const App=()=>{
     set({generating:true,results:[],selected:[],error:null,divergence:newDiv});
     try{
       const body={...baseBody(state),refImageData:img.data,refImageMime:img.mimeType,divergence:newDiv,varType:state.varType};
+      const snap={model:state.model,mode:'variations'};
       const images=await callAPI('/api/variations',body);
       const cost=state.count*3;
+      saveHistory(images,body,snap);
       set({results:images,generating:false,credits:Math.max(0,state.credits-cost)});
     }catch(err){
       set({generating:false,error:err.message});
     }
   };
 
-  const fullState={...state,generate,regenAll,iterateFrom};
+  const fullState={...state,generate,regenAll,iterateFrom,saveToLibrary};
 
   return(
     <div style={{display:'grid',gridTemplateColumns:'320px 1fr',gridTemplateRows:'52px 1fr',height:'100vh',width:'100vw'}}>
@@ -647,9 +812,16 @@ const App=()=>{
           <span className="mono" style={{fontSize:9.5,padding:'2px 7px',borderRadius:4,border:'1px solid var(--line-2)',color:'var(--text-3)',letterSpacing:'.04em'}}>BETA</span>
         </div>
         <nav style={{display:'flex',gap:2,marginLeft:18}}>
-          {['Workspace','Library','History'].map((n,i)=>(
-            <button key={n} style={{padding:'6px 12px',borderRadius:6,fontSize:12.5,color:i===0?'var(--text-1)':'var(--text-3)',background:i===0?'var(--bg-3)':'transparent',fontWeight:i===0?500:400}}>{n}</button>
-          ))}
+          {[{label:'Workspace',id:'workspace'},{label:'Library',id:'library'},{label:'History',id:'history'}].map(({label,id})=>{
+            const active=state.nav===id;
+            const badge=id==='history'?(state.history||[]).length:id==='library'?(state.library||[]).length:0;
+            return(
+              <button key={id} onClick={()=>set({nav:id})} style={{padding:'6px 12px',borderRadius:6,fontSize:12.5,color:active?'var(--text-1)':'var(--text-3)',background:active?'var(--bg-3)':'transparent',fontWeight:active?500:400,display:'flex',alignItems:'center',gap:5}}>
+                {label}
+                {badge>0&&<span className="mono" style={{fontSize:9,padding:'1px 5px',borderRadius:999,background:active?'var(--accent-soft)':'var(--bg-3)',border:'1px solid',borderColor:active?'var(--accent-line)':'var(--line-1)',color:active?'var(--accent)':'var(--text-4)'}}>{badge}</span>}
+              </button>
+            );
+          })}
         </nav>
         <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:10}}>
           {/* Credits badge */}
@@ -667,7 +839,7 @@ const App=()=>{
       </header>
 
       <Sidebar state={fullState} set={set}/>
-      <Results state={fullState} set={set}/>
+      {state.nav==='history'?<HistoryView state={fullState} set={set}/>:state.nav==='library'?<LibraryView state={fullState} set={set}/>:<Results state={fullState} set={set}/>}
 
       <TweaksPanel title="Tweaks">
         <TweakSection label="Typography">
