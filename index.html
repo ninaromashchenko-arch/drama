@@ -200,12 +200,12 @@ const Sidebar=({state,set})=>{
     else set({locRegion:label});
   };
 
-  const STYLE_MAP=[
-    {id:'cctv',     label:'CCTV / Security',  prompt:'Low-resolution high-angle surveillance footage, heavy digital noise, monochrome black and white, horizontal scan lines, overlaid technical date/time stamps in the corner'},
-    {id:'ugc',      label:'Smartphone Casual', prompt:'taken on a mobile phone, amateur photography, unprocessed, natural lighting, slight motion blur'},
-    {id:'film35',   label:'35mm Film',         prompt:'shot on 35mm film, visible film grain, analog color science, slight chromatic aberration, natural color cast, imperfect focus, muted tones'},
-    {id:'tungsten', label:'Night / Tungsten',  prompt:'low light environment, ambient tungsten lighting, warm orange shadows, underexposed, natural grain, no flash, available light only'},
-    {id:'editorial',label:'Editorial',         prompt:'editorial portrait photography, clean sharp focus, professional composition, controlled natural directional light, magazine quality'},
+  const STYLE_MAP=window.STYLE_MAP=[
+    {id:'closeup',  label:'Face Close-Up',     prompt:'extreme close-up portrait, tight face framing, shallow depth of field, skin texture detail, eyes in sharp focus'},
+    {id:'emotional',label:'Emotional Still',   prompt:'candid emotional moment, documentary portrait, raw unguarded expression, natural ambient light, photojournalistic'},
+    {id:'phoneshot',label:'Phone Screenshot',  prompt:'smartphone screenshot aesthetic, status bar overlay, notification UI elements, screen glare, mobile device framing'},
+    {id:'cctv',     label:'CCTV / Security',   prompt:'Low-resolution high-angle surveillance footage, heavy digital noise, monochrome black and white, horizontal scan lines, overlaid technical date/time stamps in the corner'},
+    {id:'ugc',      label:'Smartphone Casual',  prompt:'taken on a mobile phone, amateur photography, unprocessed, natural lighting, slight motion blur'},
   ];
   const ratios=SUPPORTED_RATIOS;
 
@@ -712,7 +712,7 @@ const App=()=>{
   // Build shared request body
   const baseBody=s=>({
     prompt:s.prompt,
-    style:s.mode==='generate'?(STYLE_MAP.find(m=>m.id===s.style)?.prompt||''):'',
+    style:s.mode==='generate'?((window.STYLE_MAP||[]).find(m=>m.id===s.style)?.prompt||''):'',
     context:s.context,
     model:s.model,
     count:s.count,
