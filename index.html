@@ -135,7 +135,20 @@ const ModelGrid=({value,onChange})=>{
   return(<div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:6}}>{models.map(m=>(<Card key={m.id} active={value===m.id} onClick={()=>onChange(m.id)} padding="11px 6px"><div style={{width:26,height:26,borderRadius:7,background:m.tint+'1a',color:m.tint,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,marginBottom:4}}>{m.glyph}</div><div style={{fontSize:11.5,fontWeight:500}}>{m.name}</div><div style={{fontSize:10,color:'var(--text-3)'}}>{m.desc}</div></Card>))}</div>);
 };
 
-// Resize an uploaded image to ≤1024px and return {base64, mime, preview, name}
+// Supported aspect ratios — order matters for tie-breaking
+const SUPPORTED_RATIOS=[
+  {id:'1:1', r:1,       desc:'Square'},
+  {id:'16:9',r:16/9,    desc:'Wide'},
+  {id:'9:16',r:9/16,    desc:'Portrait'},
+  {id:'4:3', r:4/3,     desc:'Classic'},
+  {id:'3:4', r:3/4,     desc:'Portrait 3:4'},
+];
+function nearestRatio(w,h){
+  const r=w/h;
+  return SUPPORTED_RATIOS.reduce((best,cur)=>Math.abs(cur.r-r)<Math.abs(best.r-r)?cur:best).id;
+}
+
+// Resize an uploaded image to ≤1024px and return {base64, mime, preview, name, detectedRatio}
 function processImageFile(file){
   return new Promise((resolve,reject)=>{
     const reader=new FileReader();
@@ -146,12 +159,13 @@ function processImageFile(file){
       img.onload=()=>{
         const MAX=1024;
         let {width:w,height:h}=img;
+        const detectedRatio=nearestRatio(w,h);
         if(w>MAX||h>MAX){if(w>h){h=Math.round(h/w*MAX);w=MAX;}else{w=Math.round(w/h*MAX);h=MAX;}}
         const canvas=document.createElement('canvas');
         canvas.width=w;canvas.height=h;
         canvas.getContext('2d').drawImage(img,0,0,w,h);
         const preview=canvas.toDataURL('image/jpeg',0.85);
-        resolve({base64:preview.split(',')[1],mime:'image/jpeg',preview,name:file.name,width:w,height:h});
+        resolve({base64:preview.split(',')[1],mime:'image/jpeg',preview,name:file.name,width:w,height:h,detectedRatio});
       };
       img.src=e.target.result;
     };
@@ -170,7 +184,7 @@ const Sidebar=({state,set})=>{
     if(!file)return;
     try{
       const r=await processImageFile(file);
-      set({refImage:true,refImageData:r.base64,refImageMime:r.mime,refImagePreview:r.preview,refImageName:r.name});
+      set({refImage:true,refImageData:r.base64,refImageMime:r.mime,refImagePreview:r.preview,refImageName:r.name,ratio:r.detectedRatio});
     }catch(e){console.error('Upload error',e);}
   };
 
@@ -186,7 +200,7 @@ const Sidebar=({state,set})=>{
   };
 
   const styles=['Face Close-Up','Emotional Still','Phone Screenshot'];
-  const ratios=[{id:'1:1',desc:'Square'},{id:'16:9',desc:'Wide'},{id:'9:16',desc:'Portrait'},{id:'4:3',desc:'Classic'}];
+  const ratios=SUPPORTED_RATIOS;
 
   return(
     <aside style={{width:320,background:'var(--bg-1)',borderRight:'1px solid var(--line-1)',display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
@@ -201,21 +215,20 @@ const Sidebar=({state,set})=>{
 
         <Section label="Model"><ModelGrid value={state.model} onChange={v=>set({model:v})}/></Section>
 
-        <Section label="Style">
-          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-            {styles.map(s=><Pill key={s} active={state.style===s} onClick={()=>set({style:s})}>{s}</Pill>)}
-          </div>
-        </Section>
-
         {state.mode==='generate'&&(<>
+          <Section label="Style">
+            <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+              {styles.map(s=><Pill key={s} active={state.style===s} onClick={()=>set({style:s})}>{s}</Pill>)}
+            </div>
+          </Section>
           <Section label="Prompt" right={<span className="mono" style={{fontSize:10,color:'var(--text-3)'}}>{state.prompt.length}/400</span>}>
             <Field rows={4} placeholder="A character portrait of…" value={state.prompt} onChange={e=>set({prompt:e.target.value.slice(0,400)})}/>
             <button onClick={()=>setNegOpen(!negOpen)} style={{fontSize:11,color:'var(--text-3)',marginTop:6,padding:0}}>{negOpen?'−':'+'}  Negative prompt</button>
             {negOpen&&<div style={{marginTop:6}}><Field rows={2} placeholder="What to avoid…"/></div>}
           </Section>
           <Section label="Aspect Ratio">
-            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6}}>
-              {ratios.map(r=><Card key={r.id} active={state.ratio===r.id} onClick={()=>set({ratio:r.id})} padding="9px 4px"><div className="mono" style={{fontSize:11.5,fontWeight:500}}>{r.id}</div><div style={{fontSize:10,color:'var(--text-3)'}}>{r.desc}</div></Card>)}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:6}}>
+              {ratios.map(r=><Card key={r.id} active={state.ratio===r.id} onClick={()=>set({ratio:r.id})} padding="9px 4px"><div className="mono" style={{fontSize:11,fontWeight:500}}>{r.id}</div><div style={{fontSize:10,color:'var(--text-3)'}}>{r.desc}</div></Card>)}
             </div>
           </Section>
           <Section label="Guidance" hint="How closely to follow the prompt vs. let the model interpret.">
@@ -249,6 +262,12 @@ const Sidebar=({state,set})=>{
 
           <Section label="Story Context" right={<span className="mono" style={{fontSize:10,color:'var(--text-3)'}}>{state.context.split(/\s+/).filter(Boolean).length}/600</span>}>
             <Field rows={3} placeholder="Describe the scene, mood, or narrative…" value={state.context} onChange={e=>set({context:e.target.value})}/>
+          </Section>
+          <Section label="Aspect Ratio" right={state.refImage&&<span className="mono" style={{fontSize:9,padding:'2px 7px',borderRadius:999,background:'var(--accent-soft)',border:'1px solid var(--accent-line)',color:'var(--accent)'}}>AUTO</span>}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:6}}>
+              {ratios.map(r=><Card key={r.id} active={state.ratio===r.id} onClick={()=>set({ratio:r.id})} padding="9px 4px"><div className="mono" style={{fontSize:11,fontWeight:500}}>{r.id}</div><div style={{fontSize:10,color:'var(--text-3)'}}>{r.desc}</div></Card>)}
+            </div>
+            {state.refImage&&<div style={{fontSize:10.5,color:'var(--text-3)',marginTop:7}}>Detected from reference image · override by tapping a ratio above</div>}
           </Section>
           <Section label="Divergence" hint={state.divergence<20?'Subtle shifts only':state.divergence<50?'Balanced variations':state.divergence<80?'Major reinterpretation':'Full reimagination'}>
             <Slider value={state.divergence} onChange={v=>set({divergence:v})} leftLabel="Subtle" rightLabel="Wild"/>
@@ -364,7 +383,7 @@ window.Sidebar=Sidebar;
 
 <!-- ═══════════ RESULTS ═══════════ -->
 <script type="text/babel">
-const ratioToAspect=r=>({'1:1':'1/1','16:9':'16/9','9:16':'9/16','4:3':'4/3'}[r]||'1/1');
+const ratioToAspect=r=>({'1:1':'1/1','16:9':'16/9','9:16':'9/16','4:3':'4/3','3:4':'3/4'}[r]||'1/1');
 const iconBtnStyle=active=>({width:24,height:24,borderRadius:5,background:active?'var(--accent-soft)':'#00000080',border:'1px solid',borderColor:active?'var(--accent-line)':'#ffffff20',color:active?'var(--accent)':'#fff',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center'});
 
 const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRemove,onCompare,original})=>{
@@ -686,7 +705,7 @@ const App=()=>{
   // Build shared request body
   const baseBody=s=>({
     prompt:s.prompt,
-    style:s.style,
+    style:s.mode==='generate'?s.style:'',
     context:s.context,
     model:s.model,
     count:s.count,
