@@ -497,8 +497,6 @@ const Results=({state,set})=>{
   const removeSelected=()=>set({results:results.filter(r=>!state.selected.includes(r.id)),selected:[]});
   const togglePin=id=>set({results:results.map(r=>r.id===id?{...r,pinned:!r.pinned}:r)});
   const remove=id=>set({results:results.filter(r=>r.id!==id),selected:state.selected.filter(s=>s!==id)});
-  const[lightbox,setLightbox]=React.useState(null);
-  const useAsRef=img=>set({mode:'variations',refImage:true,refImageData:img.data,refImageMime:img.mimeType,refImagePreview:`data:${img.mimeType||'image/png'};base64,${img.data}`,refImageName:'from-results.jpg'});
 
   return(
     <main style={{flex:1,display:'flex',flexDirection:'column',background:'var(--bg-0)',overflow:'hidden',position:'relative'}}>
@@ -551,11 +549,11 @@ const Results=({state,set})=>{
             </div>
             {/* Variations grid */}
             <div style={{padding:22,overflowY:'auto'}}>
-              <Grid {...{state,results,generating,ratio,select,togglePin,remove,set,view:state.view,onExpand:setLightbox}}/>
+              <Grid {...{state,results,generating,ratio,select,togglePin,remove,set,view:state.view,onExpand:img=>state.openLightbox(img,()=>remove(img.id))}}/>
             </div>
           </div>
         ):(
-          <Grid {...{state,results,generating,ratio,select,togglePin,remove,set,view:state.view,onExpand:setLightbox}}/>
+          <Grid {...{state,results,generating,ratio,select,togglePin,remove,set,view:state.view,onExpand:img=>state.openLightbox(img,()=>remove(img.id))}}/>
         )}
       </div>
 
@@ -573,8 +571,6 @@ const Results=({state,set})=>{
         </div>
       )}
 
-      {lightbox&&<LightboxModal image={lightbox} ratio={ratio} onClose={()=>setLightbox(null)} onUseAsRef={useAsRef} onDelete={id=>{remove(id);setLightbox(null);}}/>}
-
       <style>{`
         @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
         @keyframes slideUp{from{transform:translate(-50%,12px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
@@ -582,6 +578,7 @@ const Results=({state,set})=>{
     </main>
   );
 };
+window.LightboxModal=LightboxModal;
 window.Results=Results;
 
 /* ── History & Library views ── */
@@ -613,7 +610,6 @@ const MediaCard=({item,onUseAsRef,onSave,onRemove,onExpand,saveLabel='Save to Li
 
 const HistoryView=({state,set})=>{
   const h=state.history||[];
-  const[lightbox,setLightbox]=React.useState(null);
   const useAsRef=item=>set({nav:'workspace',mode:'variations',refImage:true,refImageData:item.data,refImageMime:item.mimeType,refImagePreview:`data:${item.mimeType||'image/png'};base64,${item.data}`,refImageName:'from-history.jpg'});
   const saveToLib=item=>{
     try{window.IDB.put(item.id,item.data,item.mimeType);}catch(e){}
@@ -643,18 +639,16 @@ const HistoryView=({state,set})=>{
           </div>
         ):(
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,alignContent:'start'}}>
-            {h.map(item=><MediaCard key={item.id} item={item} onUseAsRef={useAsRef} onSave={saveToLib} onExpand={setLightbox}/>)}
+            {h.map(item=><MediaCard key={item.id} item={item} onUseAsRef={useAsRef} onSave={saveToLib} onExpand={img=>state.openLightbox(img,null)}/>)}
           </div>
         )}
       </div>
-      {lightbox&&<LightboxModal image={lightbox} onClose={()=>setLightbox(null)} onUseAsRef={item=>{useAsRef(item);setLightbox(null);}} onDelete={null}/>}
     </main>
   );
 };
 
 const LibraryView=({state,set})=>{
   const lib=state.library||[];
-  const[lightbox,setLightbox]=React.useState(null);
   const useAsRef=item=>set({nav:'workspace',mode:'variations',refImage:true,refImageData:item.data,refImageMime:item.mimeType,refImagePreview:`data:${item.mimeType||'image/png'};base64,${item.data}`,refImageName:'from-library.jpg'});
   const remove=item=>{
     const next=lib.filter(l=>l.id!==item.id);
@@ -679,11 +673,10 @@ const LibraryView=({state,set})=>{
           </div>
         ):(
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,alignContent:'start'}}>
-            {lib.map(item=><MediaCard key={item.id} item={item} onUseAsRef={useAsRef} onRemove={remove} onExpand={setLightbox}/>)}
+            {lib.map(item=><MediaCard key={item.id} item={item} onUseAsRef={useAsRef} onRemove={remove} onExpand={img=>state.openLightbox(img,()=>remove(img))}/>)}
           </div>
         )}
       </div>
-      {lightbox&&<LightboxModal image={lightbox} onClose={()=>setLightbox(null)} onUseAsRef={item=>{useAsRef(item);setLightbox(null);}} onDelete={()=>{remove(lightbox);setLightbox(null);}}/>}
     </main>
   );
 };
@@ -791,6 +784,8 @@ const App=()=>{
     error:null,
     history:[],
     library:[],
+    lightboxImage:null,
+    lightboxOnDelete:null,
   });
 
   // Load persisted data on mount: metadata from localStorage, images from IndexedDB
@@ -906,10 +901,12 @@ const App=()=>{
     }
   };
 
-  const fullState={...state,generate,regenAll,iterateFrom,saveToLibrary};
+  const openLightbox=(img,onDeleteFn)=>set({lightboxImage:img,lightboxOnDelete:onDeleteFn||null});
+  const closeLightbox=()=>set({lightboxImage:null,lightboxOnDelete:null});
+  const fullState={...state,generate,regenAll,iterateFrom,saveToLibrary,openLightbox,closeLightbox};
 
   return(
-    <div style={{display:'grid',gridTemplateColumns:'360px 1fr',gridTemplateRows:'52px 1fr',height:'100vh',width:'100vw'}}>
+    <div style={{display:'grid',gridTemplateColumns:'540px 1fr',gridTemplateRows:'52px 1fr',height:'100vh',width:'100vw'}}>
       {/* Header */}
       <header style={{gridColumn:'1/-1',background:'var(--bg-1)',borderBottom:'1px solid var(--line-1)',display:'flex',alignItems:'center',padding:'0 22px',gap:14}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
@@ -948,6 +945,8 @@ const App=()=>{
 
       <Sidebar state={fullState} set={set}/>
       {state.nav==='history'?<HistoryView state={fullState} set={set}/>:state.nav==='library'?<LibraryView state={fullState} set={set}/>:<Results state={fullState} set={set}/>}
+
+      {state.lightboxImage&&React.createElement(window.LightboxModal,{image:state.lightboxImage,onClose:closeLightbox,onUseAsRef:img=>{set({nav:'workspace',mode:'variations',refImage:true,refImageData:img.data,refImageMime:img.mimeType,refImagePreview:`data:${img.mimeType||'image/png'};base64,${img.data}`,refImageName:'result.jpg'});closeLightbox();},onDelete:state.lightboxOnDelete?()=>{state.lightboxOnDelete();closeLightbox();}:null})}
 
       <TweaksPanel title="Tweaks">
         <TweakSection label="Typography">
