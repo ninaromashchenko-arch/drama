@@ -210,7 +210,7 @@ const Sidebar=({state,set})=>{
   const ratios=SUPPORTED_RATIOS;
 
   return(
-    <aside style={{width:320,background:'var(--bg-1)',borderRight:'1px solid var(--line-1)',display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
+    <aside style={{width:290,background:'var(--bg-1)',borderRight:'1px solid var(--line-1)',display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
       <div style={{flex:1,overflowY:'auto',padding:'18px 18px 4px'}}>
 
         {/* Mode tabs */}
@@ -393,15 +393,15 @@ window.Sidebar=Sidebar;
 const ratioToAspect=r=>({'1:1':'1/1','16:9':'16/9','9:16':'9/16','4:3':'4/3','3:4':'3/4'}[r]||'1/1');
 const iconBtnStyle=active=>({width:24,height:24,borderRadius:5,background:active?'var(--accent-soft)':'#00000080',border:'1px solid',borderColor:active?'var(--accent-line)':'#ffffff20',color:active?'var(--accent)':'#fff',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center'});
 
-const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRemove,onCompare,original})=>{
+const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRemove,onCompare,onExpand,original})=>{
   const[hover,setHover]=React.useState(false);
   const[imgError,setImgError]=React.useState(false);
   const src=image.data?`data:${image.mimeType||'image/png'};base64,${image.data}`:null;
   return(
     <div onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} style={{position:'relative',borderRadius:10,overflow:'hidden',border:'1px solid',borderColor:selected?'var(--accent-line)':'var(--line-1)',background:'var(--bg-2)',boxShadow:selected?'0 0 0 1px var(--accent-line),0 0 32px #7aa2ff20':'none',transition:'border-color .15s,box-shadow .15s'}}>
-      <div style={{aspectRatio:ratioToAspect(ratio),background:imgError||!src?'linear-gradient(135deg,#1f2a4f,#4a3270)':'#000',position:'relative',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
+      <div style={{aspectRatio:ratioToAspect(ratio),background:imgError||!src?'linear-gradient(135deg,#1f2a4f,#4a3270)':'#000',position:'relative',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',cursor:onExpand?'zoom-in':'default'}}>
         {src&&!imgError?(
-          <img src={src} alt="Generated" onError={()=>setImgError(true)} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
+          <img src={src} alt="Generated" onError={()=>setImgError(true)} onClick={onExpand?e=>{e.stopPropagation();onExpand(image);}:undefined} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
         ):(
           <div style={{width:'55%',height:'70%',borderRadius:'45% 45% 40% 40%',background:'radial-gradient(ellipse at 50% 35%,#ffffff14,transparent 70%)',marginTop:'8%'}}/>
         )}
@@ -435,6 +435,38 @@ const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRe
   );
 };
 
+const LightboxModal=({image,ratio,onClose,onUseAsRef,onDelete})=>{
+  const src=image.data?`data:${image.mimeType||'image/png'};base64,${image.data}`:null;
+  React.useEffect(()=>{
+    const h=e=>{if(e.key==='Escape')onClose();};
+    window.addEventListener('keydown',h);
+    return()=>window.removeEventListener('keydown',h);
+  },[onClose]);
+  const download=()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-pics-${image.seed||Date.now()}.png`;a.click();};
+  return ReactDOM.createPortal(
+    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:9998,background:'rgba(0,0,0,.85)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
+      <div onClick={e=>e.stopPropagation()} style={{position:'relative',display:'flex',flexDirection:'column',alignItems:'center',gap:14,maxWidth:'min(88vw,1200px)',maxHeight:'92vh'}}>
+        <button onClick={onClose} style={{position:'absolute',top:-14,right:-14,zIndex:1,width:30,height:30,borderRadius:8,background:'var(--bg-3)',border:'1px solid var(--line-2)',color:'var(--text-2)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>
+          <Icon.Close size={14} sw={2}/>
+        </button>
+        {src&&<img src={src} alt="Full size" style={{maxWidth:'100%',maxHeight:'calc(92vh - 72px)',objectFit:'contain',borderRadius:10,display:'block',boxShadow:'0 8px 60px #000a'}}/>}
+        <div style={{display:'flex',gap:8,background:'var(--bg-2)',border:'1px solid var(--line-1)',borderRadius:10,padding:'8px 10px'}}>
+          <button onClick={()=>{onUseAsRef(image);onClose();}} style={{fontSize:12,padding:'7px 14px',borderRadius:7,background:'var(--accent)',color:'#0a0e1c',fontWeight:600,border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
+            <Icon.Layers size={12} sw={2}/>Use as ref
+          </button>
+          <button onClick={download} style={{fontSize:12,padding:'7px 14px',borderRadius:7,border:'1px solid var(--line-2)',background:'transparent',color:'var(--text-1)',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
+            <Icon.Download size={12}/>Download
+          </button>
+          <button onClick={()=>{onDelete(image.id);onClose();}} style={{fontSize:12,padding:'7px 14px',borderRadius:7,border:'1px solid #f8717155',background:'transparent',color:'var(--danger)',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
+            <Icon.Trash size={12}/>Delete
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 const SkeletonCard=({ratio})=>(<div style={{aspectRatio:ratioToAspect(ratio),borderRadius:10,background:'linear-gradient(90deg,var(--bg-2) 25%,var(--bg-3) 50%,var(--bg-2) 75%)',backgroundSize:'200% 100%',animation:'shimmer 1.4s infinite',border:'1px solid var(--line-1)'}}/>);
 
 const Empty=()=>(<div style={{gridColumn:'1/-1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'80px 20px',gap:14}}><div style={{width:56,height:56,borderRadius:14,border:'1.5px dashed var(--line-3)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-3)'}}><Icon.Image size={22} sw={1.4}/></div><div style={{textAlign:'center'}}><div className="display" style={{fontSize:18,color:'var(--text-1)',marginBottom:4}}>Nothing here yet</div><div style={{fontSize:12.5,color:'var(--text-3)',maxWidth:280,lineHeight:1.5}}>Add a prompt or reference image, then hit Generate. Variations will land side-by-side with the original.</div></div></div>);
@@ -450,10 +482,10 @@ const ToolbarBtn=({children,icon,onClick,danger})=>{
   return(<button onClick={onClick} onMouseEnter={()=>setH(true)} onMouseLeave={()=>setH(false)} style={{fontSize:11.5,padding:'6px 11px',borderRadius:7,display:'flex',alignItems:'center',gap:6,border:'1px solid',borderColor:h?(danger?'#f8717155':'var(--line-2)'):'var(--line-1)',background:h?(danger?'#f871710f':'var(--bg-2)'):'transparent',color:h?(danger?'var(--danger)':'var(--text-1)'):'var(--text-2)',transition:'all .12s'}}>{icon}{children}</button>);
 };
 
-const Grid=({state,results,generating,ratio,select,togglePin,remove,set,view})=>{
+const Grid=({state,results,generating,ratio,select,togglePin,remove,set,view,onExpand})=>{
   const cols=view==='compact'?'repeat(4,1fr)':view==='wide'?'repeat(2,1fr)':'repeat(3,1fr)';
   return(<div style={{display:'grid',gridTemplateColumns:cols,gap:12,alignContent:'start'}}>
-    {results.map(img=>(<ImageCard key={img.id} image={img} ratio={ratio} selected={state.selected.includes(img.id)} onSelect={()=>select(img.id)} onPin={()=>togglePin(img.id)} onSaveToLib={state.saveToLibrary} onRemove={()=>remove(img.id)} onIterate={()=>state.iterateFrom(img)} onCompare={()=>{}}/>))}
+    {results.map(img=>(<ImageCard key={img.id} image={img} ratio={ratio} selected={state.selected.includes(img.id)} onSelect={()=>select(img.id)} onPin={()=>togglePin(img.id)} onSaveToLib={state.saveToLibrary} onRemove={()=>remove(img.id)} onIterate={()=>state.iterateFrom(img)} onCompare={()=>{}} onExpand={onExpand}/>))}
     {generating&&Array.from({length:state.count}).map((_,i)=>(<SkeletonCard key={'sk'+i} ratio={ratio}/>))}
   </div>);
 };
@@ -466,6 +498,8 @@ const Results=({state,set})=>{
   const removeSelected=()=>set({results:results.filter(r=>!state.selected.includes(r.id)),selected:[]});
   const togglePin=id=>set({results:results.map(r=>r.id===id?{...r,pinned:!r.pinned}:r)});
   const remove=id=>set({results:results.filter(r=>r.id!==id),selected:state.selected.filter(s=>s!==id)});
+  const[lightbox,setLightbox]=React.useState(null);
+  const useAsRef=img=>set({mode:'variations',refImage:true,refImageData:img.data,refImageMime:img.mimeType,refImagePreview:`data:${img.mimeType||'image/png'};base64,${img.data}`,refImageName:'from-results.jpg'});
 
   return(
     <main style={{flex:1,display:'flex',flexDirection:'column',background:'var(--bg-0)',overflow:'hidden',position:'relative'}}>
@@ -518,11 +552,11 @@ const Results=({state,set})=>{
             </div>
             {/* Variations grid */}
             <div style={{padding:22,overflowY:'auto'}}>
-              <Grid {...{state,results,generating,ratio,select,togglePin,remove,set,view:state.view}}/>
+              <Grid {...{state,results,generating,ratio,select,togglePin,remove,set,view:state.view,onExpand:setLightbox}}/>
             </div>
           </div>
         ):(
-          <Grid {...{state,results,generating,ratio,select,togglePin,remove,set,view:state.view}}/>
+          <Grid {...{state,results,generating,ratio,select,togglePin,remove,set,view:state.view,onExpand:setLightbox}}/>
         )}
       </div>
 
@@ -539,6 +573,8 @@ const Results=({state,set})=>{
           <button onClick={()=>set({selected:[]})} style={{width:26,height:26,borderRadius:6,color:'var(--text-3)',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon.Close size={12}/></button>
         </div>
       )}
+
+      {lightbox&&<LightboxModal image={lightbox} ratio={ratio} onClose={()=>setLightbox(null)} onUseAsRef={useAsRef} onDelete={id=>{remove(id);setLightbox(null);}}/>}
 
       <style>{`
         @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
@@ -580,16 +616,24 @@ const HistoryView=({state,set})=>{
   const h=state.history||[];
   const useAsRef=item=>set({nav:'workspace',mode:'variations',refImage:true,refImageData:item.data,refImageMime:item.mimeType,refImagePreview:`data:${item.mimeType||'image/png'};base64,${item.data}`,refImageName:'from-history.jpg'});
   const saveToLib=item=>{
+    try{window.IDB.put(item.id,item.data,item.mimeType);}catch(e){}
     const lib=[{...item,timestamp:item.timestamp||Date.now()},...(state.library||[]).filter(l=>l.id!==item.id)];
     set({library:lib});
-    try{localStorage.setItem('drama_library',JSON.stringify(lib));}catch(e){}
+    const meta=lib.map(({data:_,...rest})=>rest);
+    try{localStorage.setItem('drama_library',JSON.stringify(meta));}catch(e){}
   };
   return(
     <main style={{flex:1,display:'flex',flexDirection:'column',background:'var(--bg-0)',overflow:'hidden'}}>
       <div style={{padding:'14px 22px',borderBottom:'1px solid var(--line-1)',display:'flex',alignItems:'center',gap:10,background:'var(--bg-1)'}}>
         <span className="display" style={{fontSize:16,color:'var(--text-1)'}}>History</span>
         <span className="mono" style={{fontSize:10.5,color:'var(--text-3)',padding:'2px 8px',borderRadius:999,border:'1px solid var(--line-1)',background:'var(--bg-2)'}}>{h.length} items</span>
-        {h.length>0&&<button onClick={()=>{set({history:[]});try{localStorage.removeItem('drama_history');}catch(e){}}} style={{marginLeft:'auto',fontSize:11,color:'var(--text-3)',padding:'4px 10px',borderRadius:6,border:'1px solid var(--line-1)',background:'var(--bg-2)'}}>Clear history</button>}
+        {h.length>0&&<button onClick={()=>{
+  const libIds=new Set((state.library||[]).map(i=>i.id));
+  const toDelete=h.map(i=>i.id).filter(id=>!libIds.has(id));
+  try{window.IDB.deleteMany(toDelete);}catch(e){}
+  set({history:[]});
+  try{localStorage.removeItem('drama_history');}catch(e){}
+}} style={{marginLeft:'auto',fontSize:11,color:'var(--text-3)',padding:'4px 10px',borderRadius:6,border:'1px solid var(--line-1)',background:'var(--bg-2)'}}>Clear history</button>}
       </div>
       <div style={{flex:1,overflowY:'auto',padding:22}}>
         {h.length===0?(
@@ -613,7 +657,11 @@ const LibraryView=({state,set})=>{
   const remove=item=>{
     const next=lib.filter(l=>l.id!==item.id);
     set({library:next});
-    try{localStorage.setItem('drama_library',JSON.stringify(next));}catch(e){}
+    // Delete from IDB only if not still referenced in history
+    const inHistory=(state.history||[]).some(h=>h.id===item.id);
+    if(!inHistory){try{window.IDB.deleteMany([item.id]);}catch(e){}}
+    const meta=next.map(({data:_,...rest})=>rest);
+    try{localStorage.setItem('drama_library',JSON.stringify(meta));}catch(e){}
   };
   return(
     <main style={{flex:1,display:'flex',flexDirection:'column',background:'var(--bg-0)',overflow:'hidden'}}>
@@ -638,6 +686,53 @@ const LibraryView=({state,set})=>{
 };
 window.HistoryView=HistoryView;
 window.LibraryView=LibraryView;
+</script>
+
+<!-- ═══════════ INDEXEDDB HELPER ═══════════ -->
+<script>
+window.IDB=(function(){
+  var _db=null;
+  function open(){
+    if(_db)return Promise.resolve(_db);
+    return new Promise(function(res,rej){
+      var r=indexedDB.open('drama_pics_v1',1);
+      r.onupgradeneeded=function(e){e.target.result.createObjectStore('images',{keyPath:'id'});};
+      r.onsuccess=function(e){_db=e.target.result;res(_db);};
+      r.onerror=function(e){rej(e.target.error);};
+    });
+  }
+  return{
+    put:function(id,data,mimeType){
+      return open().then(function(db){
+        return new Promise(function(res,rej){
+          var tx=db.transaction('images','readwrite');
+          tx.objectStore('images').put({id:id,data:data,mimeType:mimeType});
+          tx.oncomplete=res;tx.onerror=function(e){rej(e.target.error);};
+        });
+      });
+    },
+    getAll:function(){
+      return open().then(function(db){
+        return new Promise(function(res,rej){
+          var r=db.transaction('images').objectStore('images').getAll();
+          r.onsuccess=function(e){res(e.target.result||[]);};
+          r.onerror=function(e){rej(e.target.error);};
+        });
+      });
+    },
+    deleteMany:function(ids){
+      if(!ids||!ids.length)return Promise.resolve();
+      return open().then(function(db){
+        return new Promise(function(res,rej){
+          var tx=db.transaction('images','readwrite');
+          var store=tx.objectStore('images');
+          ids.forEach(function(id){store.delete(id);});
+          tx.oncomplete=res;tx.onerror=function(e){rej(e.target.error);};
+        });
+      });
+    },
+  };
+})();
 </script>
 
 <!-- ═══════════ APP ═══════════ -->
@@ -684,7 +779,7 @@ const App=()=>{
     locTextHandling:'leave',
     locRegion:'',
     locRegions:[],
-    count:3,
+    count:1,
     credits:100,
     generating:false,
     results:[],
@@ -695,16 +790,25 @@ const App=()=>{
     library:[],
   });
 
-  // Load persisted data from localStorage on mount
+  // Load persisted data on mount: metadata from localStorage, images from IndexedDB
   React.useEffect(()=>{
-    try{
-      const h=localStorage.getItem('drama_history');
-      const l=localStorage.getItem('drama_library');
-      const patch={};
-      if(h){try{patch.history=JSON.parse(h);}catch(e){}}
-      if(l){try{patch.library=JSON.parse(l);}catch(e){}}
-      if(Object.keys(patch).length)set(patch);
-    }catch(e){}
+    (async()=>{
+      try{
+        const patch={};
+        const h=localStorage.getItem('drama_history');
+        const l=localStorage.getItem('drama_library');
+        if(h){try{patch.history=JSON.parse(h);}catch(e){}}
+        if(l){try{patch.library=JSON.parse(l);}catch(e){}}
+        // Merge image data from IndexedDB back into metadata entries
+        try{
+          const idbAll=await window.IDB.getAll();
+          const idbMap=Object.fromEntries(idbAll.map(img=>[img.id,img]));
+          if(patch.history) patch.history=patch.history.map(item=>idbMap[item.id]?{...item,data:idbMap[item.id].data,mimeType:idbMap[item.id].mimeType}:item);
+          if(patch.library) patch.library=patch.library.map(item=>idbMap[item.id]?{...item,data:idbMap[item.id].data,mimeType:idbMap[item.id].mimeType}:item);
+        }catch(e){}
+        if(Object.keys(patch).length)set(patch);
+      }catch(e){}
+    })();
   },[]);
 
   const set=patch=>setState(s=>({...s,...patch}));
@@ -735,21 +839,25 @@ const App=()=>{
   };
 
   const saveHistory=(images,body,snap)=>{
+    // Persist image blobs to IndexedDB (no size limit)
+    images.forEach(img=>{ try{window.IDB.put(img.id,img.data,img.mimeType);}catch(e){} });
     const entries=images.map(img=>({...img,label:body.context||body.prompt||body.style||'',prompt:body.prompt||'',context:body.context||'',model:snap.model,mode:snap.mode,timestamp:Date.now()}));
     setState(prev=>{
       const next=[...entries,...prev.history].slice(0,24);
-      try{localStorage.setItem('drama_history',JSON.stringify(next));}catch(e){
-        try{localStorage.setItem('drama_history',JSON.stringify(next.slice(0,6)));}catch(e2){}
-      }
+      // Save metadata only (no data) to localStorage — stays tiny
+      const meta=next.map(({data:_,...rest})=>rest);
+      try{localStorage.setItem('drama_history',JSON.stringify(meta));}catch(e){}
       return{...prev,history:next};
     });
   };
 
   const saveToLibrary=img=>{
+    try{window.IDB.put(img.id,img.data,img.mimeType);}catch(e){}
     const entry={...img,label:state.prompt||state.context||'',prompt:state.prompt||'',context:state.context||'',model:state.model,timestamp:Date.now()};
     setState(prev=>{
       const next=[entry,...prev.library.filter(l=>l.id!==entry.id)];
-      try{localStorage.setItem('drama_library',JSON.stringify(next));}catch(e){}
+      const meta=next.map(({data:_,...rest})=>rest);
+      try{localStorage.setItem('drama_library',JSON.stringify(meta));}catch(e){}
       return{...prev,library:next};
     });
   };
@@ -798,7 +906,7 @@ const App=()=>{
   const fullState={...state,generate,regenAll,iterateFrom,saveToLibrary};
 
   return(
-    <div style={{display:'grid',gridTemplateColumns:'320px 1fr',gridTemplateRows:'52px 1fr',height:'100vh',width:'100vw'}}>
+    <div style={{display:'grid',gridTemplateColumns:'290px 1fr',gridTemplateRows:'52px 1fr',height:'100vh',width:'100vw'}}>
       {/* Header */}
       <header style={{gridColumn:'1/-1',background:'var(--bg-1)',borderBottom:'1px solid var(--line-1)',display:'flex',alignItems:'center',padding:'0 22px',gap:14}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
