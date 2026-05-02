@@ -210,7 +210,7 @@ const Sidebar=({state,set})=>{
   const ratios=SUPPORTED_RATIOS;
 
   return(
-    <aside style={{width:290,background:'var(--bg-1)',borderRight:'1px solid var(--line-1)',display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
+    <aside style={{width:540,background:'var(--bg-1)',borderRight:'1px solid var(--line-1)',display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
       <div style={{flex:1,overflowY:'auto',padding:'18px 18px 4px'}}>
 
         {/* Mode tabs */}
@@ -442,7 +442,7 @@ const LightboxModal=({image,ratio,onClose,onUseAsRef,onDelete})=>{
     return()=>window.removeEventListener('keydown',h);
   },[onClose]);
   const download=()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-pics-${image.seed||Date.now()}.png`;a.click();};
-  return ReactDOM.createPortal(
+  return(
     <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:9998,background:'rgba(0,0,0,.85)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
       <div onClick={e=>e.stopPropagation()} style={{position:'relative',display:'flex',flexDirection:'column',alignItems:'center',gap:14,maxWidth:'min(88vw,1200px)',maxHeight:'92vh'}}>
         <button onClick={onClose} style={{position:'absolute',top:-14,right:-14,zIndex:1,width:30,height:30,borderRadius:8,background:'var(--bg-3)',border:'1px solid var(--line-2)',color:'var(--text-2)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>
@@ -461,8 +461,7 @@ const LightboxModal=({image,ratio,onClose,onUseAsRef,onDelete})=>{
           </button>}
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 };
 
