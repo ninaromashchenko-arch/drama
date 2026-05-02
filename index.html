@@ -416,7 +416,6 @@ const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRe
         ):(
           <div style={{position:'absolute',top:9,right:9,display:'flex',gap:4,opacity:hover?1:0,transition:'opacity .15s'}}>
             <button onClick={()=>{onPin();if(!image.pinned&&onSaveToLib)onSaveToLib(image);}} title={image.pinned?'Unpin (saved to Library)':'Pin to Library'} style={iconBtnStyle(image.pinned)}><Icon.Star size={12} fill={image.pinned?'currentColor':'none'}/></button>
-            <button onClick={onCompare} title="Compare" style={iconBtnStyle(false)}><Icon.Compare size={12}/></button>
           </div>
         )}
 
@@ -424,9 +423,9 @@ const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRe
           <div style={{position:'absolute',left:0,right:0,bottom:0,padding:'24px 10px 10px',background:'linear-gradient(to top,#000000bb,transparent)',display:'flex',alignItems:'flex-end',justifyContent:'space-between',opacity:hover?1:0,transition:'opacity .15s'}}>
             <span className="mono" style={{fontSize:9.5,color:'#ffffffaa'}}>seed {image.seed}</span>
             <div style={{display:'flex',gap:4}}>
-              <button onClick={onIterate} title="Iterate from this" style={{...iconBtnStyle(false),background:'var(--accent)',color:'#0a0e1c',border:'1px solid var(--accent)'}}><Icon.Branch size={12} sw={2}/></button>
+              <button onClick={onIterate} title="Iterate from this" style={{...iconBtnStyle(false),background:'var(--accent)',color:'#0a0e1c',border:'1px solid var(--accent)',padding:'0 8px',width:'auto',gap:4,display:'flex',alignItems:'center',fontSize:10.5,fontWeight:600}}><Icon.Branch size={11} sw={2}/>Iterate</button>
               <button title="Download" onClick={()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-pics-${image.seed}.png`;a.click();}} style={iconBtnStyle(false)}><Icon.Download size={12}/></button>
-              <button onClick={onRemove} title="Delete" style={iconBtnStyle(false)}><Icon.Close size={12} sw={2}/></button>
+              <button onClick={onRemove} title="Delete" style={iconBtnStyle(false)}><Icon.Trash size={12}/></button>
             </div>
           </div>
         )}
@@ -457,9 +456,9 @@ const LightboxModal=({image,ratio,onClose,onUseAsRef,onDelete})=>{
           <button onClick={download} style={{fontSize:12,padding:'7px 14px',borderRadius:7,border:'1px solid var(--line-2)',background:'transparent',color:'var(--text-1)',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
             <Icon.Download size={12}/>Download
           </button>
-          <button onClick={()=>{onDelete(image.id);onClose();}} style={{fontSize:12,padding:'7px 14px',borderRadius:7,border:'1px solid #f8717155',background:'transparent',color:'var(--danger)',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
+          {onDelete&&<button onClick={()=>onDelete(image.id)} style={{fontSize:12,padding:'7px 14px',borderRadius:7,border:'1px solid #f8717155',background:'transparent',color:'var(--danger)',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
             <Icon.Trash size={12}/>Delete
-          </button>
+          </button>}
         </div>
       </div>
     </div>,
@@ -588,13 +587,13 @@ window.Results=Results;
 /* ── History & Library views ── */
 const timeAgo=t=>{const s=Math.floor((Date.now()-t)/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';};
 
-const MediaCard=({item,onUseAsRef,onSave,onRemove,saveLabel='Save to Library'})=>{
+const MediaCard=({item,onUseAsRef,onSave,onRemove,onExpand,saveLabel='Save to Library'})=>{
   const[hover,setHover]=React.useState(false);
   const src=item.data?`data:${item.mimeType||'image/png'};base64,${item.data}`:null;
   return(
     <div onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} style={{borderRadius:10,overflow:'hidden',border:'1px solid var(--line-1)',background:'var(--bg-2)'}}>
-      <div style={{aspectRatio:'1/1',background:'linear-gradient(135deg,#1f2a4f,#4a3270)',position:'relative',overflow:'hidden'}}>
-        {src&&<img src={src} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>}
+      <div style={{aspectRatio:'1/1',background:'linear-gradient(135deg,#1f2a4f,#4a3270)',position:'relative',overflow:'hidden',cursor:onExpand?'zoom-in':'default'}}>
+        {src&&<img src={src} alt="" onClick={onExpand?e=>{e.stopPropagation();onExpand(item);}:undefined} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>}
         <div style={{position:'absolute',inset:0,background:'linear-gradient(to top,#000000cc,transparent 50%)',opacity:hover?1:0,transition:'opacity .15s',padding:10,display:'flex',flexDirection:'column',justifyContent:'flex-end',gap:5}}>
           <div style={{display:'flex',gap:4}}>
             <button onClick={()=>onUseAsRef(item)} style={{flex:1,padding:'6px',borderRadius:6,background:'var(--accent)',color:'#0a0e1c',fontSize:11,fontWeight:600,border:'none',cursor:'pointer'}}>Use as ref</button>
@@ -614,6 +613,7 @@ const MediaCard=({item,onUseAsRef,onSave,onRemove,saveLabel='Save to Library'})=
 
 const HistoryView=({state,set})=>{
   const h=state.history||[];
+  const[lightbox,setLightbox]=React.useState(null);
   const useAsRef=item=>set({nav:'workspace',mode:'variations',refImage:true,refImageData:item.data,refImageMime:item.mimeType,refImagePreview:`data:${item.mimeType||'image/png'};base64,${item.data}`,refImageName:'from-history.jpg'});
   const saveToLib=item=>{
     try{window.IDB.put(item.id,item.data,item.mimeType);}catch(e){}
@@ -643,16 +643,18 @@ const HistoryView=({state,set})=>{
           </div>
         ):(
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,alignContent:'start'}}>
-            {h.map(item=><MediaCard key={item.id} item={item} onUseAsRef={useAsRef} onSave={saveToLib}/>)}
+            {h.map(item=><MediaCard key={item.id} item={item} onUseAsRef={useAsRef} onSave={saveToLib} onExpand={setLightbox}/>)}
           </div>
         )}
       </div>
+      {lightbox&&<LightboxModal image={lightbox} onClose={()=>setLightbox(null)} onUseAsRef={item=>{useAsRef(item);setLightbox(null);}} onDelete={null}/>}
     </main>
   );
 };
 
 const LibraryView=({state,set})=>{
   const lib=state.library||[];
+  const[lightbox,setLightbox]=React.useState(null);
   const useAsRef=item=>set({nav:'workspace',mode:'variations',refImage:true,refImageData:item.data,refImageMime:item.mimeType,refImagePreview:`data:${item.mimeType||'image/png'};base64,${item.data}`,refImageName:'from-library.jpg'});
   const remove=item=>{
     const next=lib.filter(l=>l.id!==item.id);
@@ -677,10 +679,11 @@ const LibraryView=({state,set})=>{
           </div>
         ):(
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,alignContent:'start'}}>
-            {lib.map(item=><MediaCard key={item.id} item={item} onUseAsRef={useAsRef} onRemove={remove}/>)}
+            {lib.map(item=><MediaCard key={item.id} item={item} onUseAsRef={useAsRef} onRemove={remove} onExpand={setLightbox}/>)}
           </div>
         )}
       </div>
+      {lightbox&&<LightboxModal image={lightbox} onClose={()=>setLightbox(null)} onUseAsRef={item=>{useAsRef(item);setLightbox(null);}} onDelete={()=>{remove(lightbox);setLightbox(null);}}/>}
     </main>
   );
 };
@@ -906,7 +909,7 @@ const App=()=>{
   const fullState={...state,generate,regenAll,iterateFrom,saveToLibrary};
 
   return(
-    <div style={{display:'grid',gridTemplateColumns:'290px 1fr',gridTemplateRows:'52px 1fr',height:'100vh',width:'100vw'}}>
+    <div style={{display:'grid',gridTemplateColumns:'360px 1fr',gridTemplateRows:'52px 1fr',height:'100vh',width:'100vw'}}>
       {/* Header */}
       <header style={{gridColumn:'1/-1',background:'var(--bg-1)',borderBottom:'1px solid var(--line-1)',display:'flex',alignItems:'center',padding:'0 22px',gap:14}}>
         <div style={{display:'flex',alignItems:'center',gap:10}}>
