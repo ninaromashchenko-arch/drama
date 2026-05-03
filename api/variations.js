@@ -161,7 +161,7 @@ module.exports = async function handler(req, res) {
 
     // Lead line — ethnicity is the PRIMARY instruction, but pose is named explicitly.
     const leadLine =
-      `TRANSFORM this portrait: re-render the subject as a ${eth} person ` +
+      `TRANSFORM this portrait: re-render the subjects as ${eth} people ` +
       `with the EXACT SAME head tilt, camera angle, eye gaze direction, and facial expression ` +
       `as the reference image. ` +
       `Render authentic ${eth} skin tone, facial bone structure, eye shape, and nose shape ` +
@@ -259,7 +259,7 @@ module.exports = async function handler(req, res) {
   const [, txtNeg] = textHandlingPrompt(locTextHandling);
 
   const promptParts = [
-    `Create a ${divergenceWord} portrait variation.`,
+    `Create a ${divergenceWord} variation.`,
     compositionLogic,
   ];
   if (prompt)  promptParts.push(prompt);
