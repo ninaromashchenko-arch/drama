@@ -148,13 +148,6 @@ module.exports = async function handler(req, res) {
       `Render authentic ${eth} skin tone, facial bone structure, eye shape, and nose shape ` +
       `with photorealistic accuracy.`;
 
-    // Preserve line — call out every geometric element individually.
-    const preserveLine =
-      `STRUCTURAL LOCK — do not alter any of the following: ` +
-      `the head rotation angle, jaw tilt, shoulder position, eye gaze vector, ` +
-      `brow height, mouth pose, neck angle, and body framing. ` +
-      `Keep identical: background and overall composition.`;
-
     // Coverage line — ensures ALL people are transformed, not just the dominant face.
     const coverageLine =
       `Apply the transformation to ALL people visible in the image — ` +
@@ -180,7 +173,7 @@ module.exports = async function handler(req, res) {
     // Combine all negative instructions
     const negativeLine = [negTxt, txtNeg].filter(Boolean).join('. ');
 
-    const fullPrompt = [leadLine, coverageLine, preserveLine, grainLine, ...extras, negativeLine, RATIO_LABELS[ratio] || ratio]
+    const fullPrompt = [leadLine, coverageLine, grainLine, ...extras, negativeLine, RATIO_LABELS[ratio] || ratio]
       .filter(Boolean)
       .join('. ')
       .replace(/\.{2,}/g, '.')
