@@ -176,10 +176,10 @@ function processImageFile(file){
 
 const Sidebar=({state,set})=>{
   const[negOpen,setNegOpen]=React.useState(false);
-  const[locOpen,setLocOpen]=React.useState(true);
+  const[locOpen,setLocOpen]=React.useState(false);
   const fileRef=React.useRef(null);
 
-  React.useEffect(()=>{if(state.locEnabled)setLocOpen(true);},[state.locEnabled]);
+  React.useEffect(()=>{setLocOpen(state.locEnabled);},[state.locEnabled]);
 
   const handleFile=async file=>{
     if(!file)return;
@@ -206,6 +206,7 @@ const Sidebar=({state,set})=>{
     {id:'phoneshot',label:'Phone Screenshot',  prompt:'smartphone screenshot aesthetic, status bar overlay, notification UI elements, screen glare, mobile device framing'},
     {id:'cctv',     label:'CCTV / Security',   prompt:'Low-resolution high-angle surveillance footage, heavy digital noise, monochrome black and white, horizontal scan lines, overlaid technical date/time stamps in the corner'},
     {id:'ugc',      label:'Smartphone Casual',  prompt:'casual mobile phone snapshot, amateur photography, unprocessed, wide focal length, f/8 aperture, flat mobile sensor depth'},
+    {id:'docs',     label:'Docs',               prompt:'close-up smartphone photograph of a printed paper legal document. Includes bold official rubber stamps in black and red ink, multiple pen signatures, handwritten scribbled annotations, a red certified copy marker. realistic paper texture. clear, non-professional serif typography, practical overhead desk lighting with slight paper glare'},
   ];
   const ratios=SUPPORTED_RATIOS;
 
@@ -434,32 +435,111 @@ const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRe
   );
 };
 
-const LightboxModal=({image,ratio,onClose,onUseAsRef,onDelete})=>{
-  const src=image.data?`data:${image.mimeType||'image/png'};base64,${image.data}`:null;
+const LightboxModal=({image,onClose,onUseAsRef,onDelete,onSaveEdit,model='balanced'})=>{
+  const[editInstruction,setEditInstruction]=React.useState('');
+  const[editLoading,setEditLoading]=React.useState(false);
+  const[editResult,setEditResult]=React.useState(null);
+  const[editError,setEditError]=React.useState(null);
+  const inputRef=React.useRef(null);
+
+  const displayed=editResult||image;
+  const src=displayed.data?`data:${displayed.mimeType||'image/png'};base64,${displayed.data}`:null;
+  const origSrc=image.data?`data:${image.mimeType||'image/png'};base64,${image.data}`:null;
+
   React.useEffect(()=>{
     const h=e=>{if(e.key==='Escape')onClose();};
     window.addEventListener('keydown',h);
     return()=>window.removeEventListener('keydown',h);
   },[onClose]);
-  const download=()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-pics-${image.seed||Date.now()}.png`;a.click();};
+
+  const download=()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-edit-${displayed.seed||Date.now()}.png`;a.click();};
+
+  const runEdit=async()=>{
+    if(!editInstruction.trim()||!image.data)return;
+    setEditLoading(true);
+    setEditError(null);
+    try{
+      const resp=await fetch('/api/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageData:image.data,imageMime:image.mimeType||'image/png',instruction:editInstruction.trim(),model})});
+      const data=await resp.json();
+      if(!resp.ok)throw new Error(data.error||'Edit failed');
+      if(data.image)setEditResult(data.image);
+    }catch(e){setEditError(e.message);}
+    finally{setEditLoading(false);}
+  };
+
+  const btnBase={fontSize:12,padding:'7px 14px',borderRadius:7,cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'};
+
   return(
-    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:9998,background:'rgba(0,0,0,.85)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
-      <div onClick={e=>e.stopPropagation()} style={{position:'relative',display:'flex',flexDirection:'column',alignItems:'center',gap:14,maxWidth:'min(88vw,1200px)',maxHeight:'92vh'}}>
+    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:9998,background:'rgba(0,0,0,.88)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
+      <div onClick={e=>e.stopPropagation()} style={{position:'relative',display:'flex',flexDirection:'column',alignItems:'center',gap:14,maxWidth:'min(88vw,1100px)',width:'100%',maxHeight:'92vh'}}>
+
+        {/* Close */}
         <button onClick={onClose} style={{position:'absolute',top:-14,right:-14,zIndex:1,width:30,height:30,borderRadius:8,background:'var(--bg-3)',border:'1px solid var(--line-2)',color:'var(--text-2)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>
           <Icon.Close size={14} sw={2}/>
         </button>
-        {src&&<img src={src} alt="Full size" style={{maxWidth:'100%',maxHeight:'calc(92vh - 72px)',objectFit:'contain',borderRadius:10,display:'block',boxShadow:'0 8px 60px #000a'}}/>}
-        <div style={{display:'flex',gap:8,background:'var(--bg-2)',border:'1px solid var(--line-1)',borderRadius:10,padding:'8px 10px'}}>
-          <button onClick={()=>{onUseAsRef(image);onClose();}} style={{fontSize:12,padding:'7px 14px',borderRadius:7,background:'var(--accent)',color:'#0a0e1c',fontWeight:600,border:'none',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
-            <Icon.Layers size={12} sw={2}/>Use as ref
+
+        {/* Image area */}
+        {editLoading?(
+          <div style={{width:'100%',minHeight:320,maxHeight:'calc(92vh - 160px)',borderRadius:10,background:'linear-gradient(90deg,var(--bg-2) 25%,var(--bg-3) 50%,var(--bg-2) 75%)',backgroundSize:'200% 100%',animation:'shimmer 1.4s infinite',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <span style={{fontSize:13,color:'var(--text-3)'}}>Editing…</span>
+          </div>
+        ):(
+          <div style={{display:'flex',gap:12,alignItems:'flex-start',width:'100%',justifyContent:'center'}}>
+            {editResult&&(
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+                <img src={origSrc} alt="Original" style={{maxHeight:'calc(92vh - 200px)',maxWidth:'46%',objectFit:'contain',borderRadius:10,opacity:.55,boxShadow:'0 4px 30px #000a'}}/>
+                <span style={{fontSize:10,color:'var(--text-4)'}}>Original</span>
+              </div>
+            )}
+            <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+              {src&&<img src={src} alt="Full size" style={{maxHeight:'calc(92vh - 200px)',maxWidth:editResult?'46%':'100%',objectFit:'contain',borderRadius:10,display:'block',boxShadow:'0 8px 60px #000a'}}/>}
+              {editResult&&<span style={{fontSize:10,color:'var(--accent)'}}>Edited</span>}
+            </div>
+          </div>
+        )}
+
+        {/* Error */}
+        {editError&&<div style={{fontSize:12,color:'var(--danger)',padding:'6px 12px',borderRadius:7,background:'#f871710f',border:'1px solid #f8717155'}}>{editError}</div>}
+
+        {/* Edit instruction row */}
+        <div style={{display:'flex',gap:8,width:'100%',maxWidth:700}}>
+          <input
+            ref={inputRef}
+            value={editInstruction}
+            onChange={e=>setEditInstruction(e.target.value)}
+            onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();runEdit();}}}
+            placeholder="Describe what to change — e.g. 'fix the face', 'change hair to black', 'remove logo'"
+            style={{flex:1,padding:'9px 14px',borderRadius:8,background:'var(--bg-2)',border:'1px solid var(--line-2)',color:'var(--text-1)',fontSize:12.5,fontFamily:'inherit',outline:'none'}}
+          />
+          <button onClick={runEdit} disabled={editLoading||!editInstruction.trim()} style={{...btnBase,background:'var(--accent)',color:'#0a0e1c',fontWeight:600,border:'none',opacity:editInstruction.trim()&&!editLoading?1:.45}}>
+            {editLoading?'Editing…':'Edit'}
           </button>
-          <button onClick={download} style={{fontSize:12,padding:'7px 14px',borderRadius:7,border:'1px solid var(--line-2)',background:'transparent',color:'var(--text-1)',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
+        </div>
+
+        {/* Action bar */}
+        <div style={{display:'flex',gap:8,background:'var(--bg-2)',border:'1px solid var(--line-1)',borderRadius:10,padding:'8px 10px'}}>
+          {editResult?(
+            <>
+              <button onClick={()=>onSaveEdit&&onSaveEdit(editResult)} style={{...btnBase,background:'var(--accent)',color:'#0a0e1c',fontWeight:600,border:'none'}}>
+                <Icon.Star size={12}/>Save edit
+              </button>
+              <button onClick={()=>{setEditResult(null);setEditInstruction('');}} style={{...btnBase,border:'1px solid var(--line-2)',background:'transparent',color:'var(--text-1)'}}>
+                ← Back to original
+              </button>
+            </>
+          ):(
+            <button onClick={()=>{onUseAsRef(image);onClose();}} style={{...btnBase,background:'var(--accent)',color:'#0a0e1c',fontWeight:600,border:'none'}}>
+              <Icon.Layers size={12} sw={2}/>Use as ref
+            </button>
+          )}
+          <button onClick={download} style={{...btnBase,border:'1px solid var(--line-2)',background:'transparent',color:'var(--text-1)'}}>
             <Icon.Download size={12}/>Download
           </button>
-          {onDelete&&<button onClick={()=>onDelete(image.id)} style={{fontSize:12,padding:'7px 14px',borderRadius:7,border:'1px solid #f8717155',background:'transparent',color:'var(--danger)',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontFamily:'inherit'}}>
+          {onDelete&&!editResult&&<button onClick={()=>onDelete(image.id)} style={{...btnBase,border:'1px solid #f8717155',background:'transparent',color:'var(--danger)'}}>
             <Icon.Trash size={12}/>Delete
           </button>}
         </div>
+
       </div>
     </div>
   );
@@ -952,7 +1032,7 @@ const App=()=>{
       <Sidebar state={fullState} set={set}/>
       {state.nav==='history'?<HistoryView state={fullState} set={set}/>:state.nav==='library'?<LibraryView state={fullState} set={set}/>:<Results state={fullState} set={set}/>}
 
-      {state.lightboxImage&&React.createElement(window.LightboxModal,{image:state.lightboxImage,onClose:closeLightbox,onUseAsRef:img=>{set({nav:'workspace',mode:'variations',refImage:true,refImageData:img.data,refImageMime:img.mimeType,refImagePreview:`data:${img.mimeType||'image/png'};base64,${img.data}`,refImageName:'result.jpg'});closeLightbox();},onDelete:state.lightboxOnDelete?()=>{state.lightboxOnDelete();closeLightbox();}:null})}
+      {state.lightboxImage&&React.createElement(window.LightboxModal,{image:state.lightboxImage,model:state.model,onClose:closeLightbox,onUseAsRef:img=>{set({nav:'workspace',mode:'variations',refImage:true,refImageData:img.data,refImageMime:img.mimeType,refImagePreview:`data:${img.mimeType||'image/png'};base64,${img.data}`,refImageName:'result.jpg'});closeLightbox();},onDelete:state.lightboxOnDelete?()=>{state.lightboxOnDelete();closeLightbox();}:null,onSaveEdit:img=>{state.saveToLibrary(img);closeLightbox();}})}
 
       <TweaksPanel title="Tweaks">
         <TweakSection label="Typography">
