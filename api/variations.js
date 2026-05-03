@@ -62,28 +62,9 @@ function ethnicityLabel(region = '') {
   return region.charAt(0).toUpperCase() + region.slice(1);
 }
 
-// Negative terms to push the model away from the original.
-// Only used when ethnicity swap is active.
-function negativeTerms(ethnicity) {
-  const eth = ethnicity.toLowerCase();
-  const common = 'do not copy the original person\'s ethnicity, skin colour, or facial structure';
-  if (eth.includes('filipino') || eth.includes('southeast') || eth.includes('asian')) {
-    return `${common}. Avoid Caucasian, European, or pale white skin tone and features`;
-  }
-  if (eth.includes('african') || eth.includes('black') || eth.includes('nigerian')) {
-    return `${common}. Avoid Caucasian, European, or pale white skin tone and features`;
-  }
-  if (eth.includes('latin') || eth.includes('brazilian') || eth.includes('mexican')) {
-    return `${common}. Avoid Northern European or East Asian features`;
-  }
-  if (eth.includes('indian') || eth.includes('south asian')) {
-    return `${common}. Avoid Caucasian, East Asian, or African features`;
-  }
-  if (eth.includes('east asian') || eth.includes('chinese') || eth.includes('japanese') || eth.includes('korean')) {
-    return `${common}. Avoid Caucasian, European, or South Asian features`;
-  }
-  // generic fallback
-  return `${common}. Avoid retaining the original subject's racial characteristics`;
+// Universal negative — source-agnostic, relies on positive instruction to drive the transformation.
+function negativeTerms() {
+  return 'do not retain the original ethnicity, skin colour, or facial structure of any person in the image';
 }
 
 // Text handling returns [positiveInstruction, negativeInstruction]
@@ -154,15 +135,15 @@ module.exports = async function handler(req, res) {
 
   if (locEnabled && locRegion) {
     const eth    = ethnicityLabel(locRegion);
-    const negTxt = negativeTerms(eth);
+    const negTxt = negativeTerms();
 
     // Clamp divergence: floor 40 (enough to change features), ceiling 55 (pose safe).
     const effectiveDivergence = Math.min(Math.max(divergence, 40), 55);
 
     // Lead line — ethnicity is the PRIMARY instruction, but pose is named explicitly.
     const leadLine =
-      `TRANSFORM this portrait: re-render the subjects as ${eth} people ` +
-      `with the EXACT SAME head tilt, camera angle, eye gaze direction, and facial expression ` +
+      `TRANSFORM this portrait: re-render every person in this image as ${eth}, ` +
+      `keeping the EXACT SAME head tilt, camera angle, eye gaze direction, and facial expression ` +
       `as the reference image. ` +
       `Render authentic ${eth} skin tone, facial bone structure, eye shape, and nose shape ` +
       `with photorealistic accuracy.`;
