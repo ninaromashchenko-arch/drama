@@ -142,7 +142,7 @@ module.exports = async function handler(req, res) {
 
     // Lead line — ethnicity is the PRIMARY instruction, but pose is named explicitly.
     const leadLine =
-      `TRANSFORM this portrait: re-render every person in this image as ${eth}, ` +
+      `TRANSFORM this image: re-render every person in this image as ${eth}, ` +
       `keeping the EXACT SAME head tilt, camera angle, eye gaze direction, and facial expression ` +
       `as the reference image. ` +
       `Render authentic ${eth} skin tone, facial bone structure, eye shape, and nose shape ` +
@@ -153,7 +153,7 @@ module.exports = async function handler(req, res) {
       `STRUCTURAL LOCK — do not alter any of the following: ` +
       `the head rotation angle, jaw tilt, shoulder position, eye gaze vector, ` +
       `brow height, mouth pose, neck angle, and body framing. ` +
-      `Keep identical: clothing, hairstyle silhouette, background, and overall composition.`;
+      `Keep identical: background and overall composition.`;
 
     // Photo-realism / grain matching — prevents the "too sharp face on grainy background" seam.
     const grainLine =
