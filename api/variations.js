@@ -140,26 +140,22 @@ module.exports = async function handler(req, res) {
     // Clamp divergence: floor 40 (enough to change features), ceiling 55 (pose safe).
     const effectiveDivergence = Math.min(Math.max(divergence, 40), 55);
 
-    // Lead line — ethnicity is the PRIMARY instruction, but pose is named explicitly.
+    // Re-render framing — pose and scene preserved, only ethnicity changes.
     const leadLine =
-      `TRANSFORM this image: re-render every person in this image as ${eth}, ` +
-      `keeping the EXACT SAME head tilt, camera angle, eye gaze direction, and facial expression ` +
-      `as the reference image. ` +
-      `Render authentic ${eth} skin tone, facial bone structure, eye shape, and nose shape ` +
-      `with photorealistic accuracy.`;
+      `Re-render this photo with all people appearing as ${eth}. ` +
+      `Keep the pose, position, background, clothing, and overall scene exactly as in the original. ` +
+      `Only change the ethnicity: adapt skin tone, facial bone structure, eye shape, nose shape, and hair ` +
+      `to authentically reflect ${eth} appearance for every person in the image.`;
 
     // Coverage line — ensures ALL people are transformed, not just the dominant face.
     const coverageLine =
-      `Apply the transformation to ALL people visible in the image — ` +
-      `every face, including children and background figures, must be re-rendered as ${eth}. ` +
-      `Transform hair, skin tone, and facial features of every person to authentically reflect ${eth} appearance.`;
+      `Every person visible — including children and background figures — must be re-rendered as ${eth}. ` +
+      `No person in the image should retain their original ethnicity.`;
 
     // Photo-realism / grain matching — prevents the "too sharp face on grainy background" seam.
     const grainLine =
-      `MATCH the original photo's film grain, lens bokeh, focal depth, ` +
-      `colour temperature, and ambient lighting exactly. ` +
-      `The new face must blend seamlessly with the existing background — ` +
-      `do not introduce studio-clean sharpness or artificial skin smoothing.`;
+      `Match the original photo's lighting, colour temperature, film grain, and focal depth exactly. ` +
+      `New faces must blend seamlessly with the scene — no artificial sharpness or skin smoothing.`;
 
     // Optional extras.
     const extras = [];
