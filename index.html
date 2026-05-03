@@ -225,7 +225,7 @@ const Sidebar=({state,set})=>{
         {state.mode==='generate'&&(<>
           <Section label="Style">
             <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-              {STYLE_MAP.map(s=><Pill key={s.id} active={state.style===s.id} onClick={()=>set({style:state.style===s.id?'':s.id})}>{s.label}</Pill>)}
+              {STYLE_MAP.map(s=><Pill key={s.id} active={state.style===s.id} onClick={()=>set({style:state.style===s.id?'':s.id,...(s.id==='ugc'&&state.style!==s.id?{cfg:5}:{})})}>{s.label}</Pill>)}
             </div>
           </Section>
           <Section label="Prompt" right={<span className="mono" style={{fontSize:10,color:'var(--text-3)'}}>{state.prompt.length}/400</span>}>
@@ -814,10 +814,12 @@ const App=()=>{
   const baseBody=s=>({
     prompt:s.prompt,
     style:s.mode==='generate'?((window.STYLE_MAP||[]).find(m=>m.id===s.style)?.prompt||''):'',
+    styleId:s.mode==='generate'?s.style:'',
     context:s.context,
     model:s.model,
     count:s.count,
     ratio:s.ratio,
+    cfg:s.cfg||7,
     locEnabled:s.locEnabled,
     locTextHandling:s.locTextHandling,
     locRegion:s.locMulti?s.locRegions.join(', '):s.locRegion,
