@@ -155,6 +155,12 @@ module.exports = async function handler(req, res) {
       `brow height, mouth pose, neck angle, and body framing. ` +
       `Keep identical: background and overall composition.`;
 
+    // Coverage line — ensures ALL people are transformed, not just the dominant face.
+    const coverageLine =
+      `Apply the transformation to ALL people visible in the image — ` +
+      `every face, including children and background figures, must be re-rendered as ${eth}. ` +
+      `Transform hair, skin tone, and facial features of every person to authentically reflect ${eth} appearance.`;
+
     // Photo-realism / grain matching — prevents the "too sharp face on grainy background" seam.
     const grainLine =
       `MATCH the original photo's film grain, lens bokeh, focal depth, ` +
@@ -174,7 +180,7 @@ module.exports = async function handler(req, res) {
     // Combine all negative instructions
     const negativeLine = [negTxt, txtNeg].filter(Boolean).join('. ');
 
-    const fullPrompt = [leadLine, preserveLine, grainLine, ...extras, negativeLine, RATIO_LABELS[ratio] || ratio]
+    const fullPrompt = [leadLine, coverageLine, preserveLine, grainLine, ...extras, negativeLine, RATIO_LABELS[ratio] || ratio]
       .filter(Boolean)
       .join('. ')
       .replace(/\.{2,}/g, '.')
