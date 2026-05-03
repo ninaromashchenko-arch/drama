@@ -232,7 +232,7 @@ const Sidebar=({state,set})=>{
           <Section label="Prompt" right={<span className="mono" style={{fontSize:10,color:'var(--text-3)'}}>{state.prompt.length}/400</span>}>
             <Field rows={4} placeholder="A character portrait of…" value={state.prompt} onChange={e=>set({prompt:e.target.value.slice(0,400)})}/>
             <button onClick={()=>setNegOpen(!negOpen)} style={{fontSize:11,color:'var(--text-3)',marginTop:6,padding:0}}>{negOpen?'−':'+'}  Negative prompt</button>
-            {negOpen&&<div style={{marginTop:6}}><Field rows={2} placeholder="What to avoid…"/></div>}
+            {negOpen&&<div style={{marginTop:6}}><Field rows={2} placeholder="What to avoid…" value={state.negPrompt} onChange={e=>set({negPrompt:e.target.value})}/></div>}
           </Section>
           <Section label="Aspect Ratio">
             <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:6}}>
@@ -277,10 +277,10 @@ const Sidebar=({state,set})=>{
             </div>
             {state.refImage&&<div style={{fontSize:10.5,color:'var(--text-3)',marginTop:7}}>Detected from reference image · override by tapping a ratio above</div>}
           </Section>
-          <Section label="Divergence" hint={state.divergence<20?'Subtle shifts only':state.divergence<50?'Balanced variations':state.divergence<80?'Major reinterpretation':'Full reimagination'}>
+          <Section label="Divergence" hint={state.locEnabled&&state.locRegion?'Clamped to 40–55 for ethnicity swap — preserves pose':state.divergence<20?'Subtle shifts only':state.divergence<50?'Balanced variations':state.divergence<80?'Major reinterpretation':'Full reimagination'}>
             <Slider value={state.divergence} onChange={v=>set({divergence:v})} leftLabel="Subtle" rightLabel="Wild"/>
           </Section>
-          <Section label="Variation Type">
+          {!state.locEnabled&&(<Section label="Variation Type">
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
               {[{id:'alternatives',name:'Alternatives',desc:'Different compositions'},{id:'variations',name:'Variations',desc:'Same composition'}].map(v=>(
                 <Card key={v.id} active={state.varType===v.id} onClick={()=>set({varType:v.id})} padding="10px 8px">
@@ -289,7 +289,7 @@ const Sidebar=({state,set})=>{
                 </Card>
               ))}
             </div>
-          </Section>
+          </Section>)}
 
         </>)}
 
@@ -435,7 +435,25 @@ const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRe
   );
 };
 
-const LightboxModal=({image,onClose,onUseAsRef,onDelete,onSaveEdit,model='balanced'})=>{
+function resizeBase64(data,mime){
+  return new Promise(res=>{
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=1024;
+      let w=img.width,h=img.height;
+      if(w<=MAX&&h<=MAX){res({data,mime});return;}
+      if(w>h){h=Math.round(h/w*MAX);w=MAX;}else{w=Math.round(w/h*MAX);h=MAX;}
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      const url=c.toDataURL('image/jpeg',0.88);
+      res({data:url.split(',')[1],mime:'image/jpeg'});
+    };
+    img.onerror=()=>res({data,mime});
+    img.src=`data:${mime};base64,${data}`;
+  });
+}
+
+const LightboxModal=({image,onClose,onUseAsRef,onDelete,onSaveEdit,model='fast'})=>{
   const[editInstruction,setEditInstruction]=React.useState('');
   const[editLoading,setEditLoading]=React.useState(false);
   const[editResult,setEditResult]=React.useState(null);
@@ -459,7 +477,8 @@ const LightboxModal=({image,onClose,onUseAsRef,onDelete,onSaveEdit,model='balanc
     setEditLoading(true);
     setEditError(null);
     try{
-      const resp=await fetch('/api/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageData:image.data,imageMime:image.mimeType||'image/png',instruction:editInstruction.trim(),model})});
+      const{data:imgData,mime:imgMime}=await resizeBase64(image.data,image.mimeType||'image/png');
+      const resp=await fetch('/api/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageData:imgData,imageMime:imgMime,instruction:editInstruction.trim(),model})});
       const data=await resp.json();
       if(!resp.ok)throw new Error(data.error||'Edit failed');
       if(data.image)setEditResult(data.image);
@@ -844,6 +863,7 @@ const App=()=>{
     model:'fast',
     style:'',
     prompt:'',
+    negPrompt:'',
     context:'',
     ratio:'1:1',
     cfg:7,
@@ -898,8 +918,8 @@ const App=()=>{
   // Build shared request body
   const baseBody=s=>({
     prompt:s.prompt,
+    negPrompt:s.negPrompt||'',
     style:s.mode==='generate'?((window.STYLE_MAP||[]).find(m=>m.id===s.style)?.prompt||''):'',
-    styleId:s.mode==='generate'?s.style:'',
     context:s.context,
     model:s.model,
     count:s.count,

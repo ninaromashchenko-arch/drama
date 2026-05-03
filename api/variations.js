@@ -137,9 +137,6 @@ module.exports = async function handler(req, res) {
     const eth    = ethnicityLabel(locRegion);
     const negTxt = negativeTerms();
 
-    // Clamp divergence: floor 40 (enough to change features), ceiling 55 (pose safe).
-    const effectiveDivergence = Math.min(Math.max(divergence, 40), 55);
-
     // Re-render framing — pose and scene preserved, only ethnicity changes.
     const leadLine =
       `Re-render this photo with all people appearing as ${eth}. ` +
@@ -175,7 +172,7 @@ module.exports = async function handler(req, res) {
       .replace(/\.{2,}/g, '.')
       .trim();
 
-    console.log('[variations:loc] ethnicity=%s effectiveDivergence=%d (clamped 40-55)', eth, effectiveDivergence);
+    console.log('[variations:loc] ethnicity=%s', eth);
     console.log('[variations:loc] prompt=', fullPrompt.slice(0, 200));
 
     const contentParts = [{ text: fullPrompt }];

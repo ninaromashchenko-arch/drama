@@ -26,15 +26,20 @@ module.exports = async function handler(req, res) {
 
   const {
     prompt          = '',
+    negPrompt       = '',
     style           = '',   // full prompt string from STYLE_MAP
     context         = '',
-    model           = 'balanced',
+    model           = 'fast',
     count           = 1,
     ratio           = '1:1',
+    cfg             = 7,
     locEnabled      = false,
     locTextHandling = 'leave',
     locRegion       = '',
   } = req.body;
+
+  // Map cfg (1–20) to temperature (1.0–0.2). High cfg = strict = low temp.
+  const temperature = Math.max(0.2, Math.min(1.0, 1.0 - ((cfg - 1) / 19) * 0.8));
 
   let fullPrompt;
 
@@ -54,10 +59,11 @@ module.exports = async function handler(req, res) {
   } else {
     // ── Standard path ─────────────────────────────────────────────────────
     const parts = [];
-    if (style)   parts.push(style);
-    if (prompt)  parts.push(prompt);
-    if (context) parts.push(`Scene: ${context}`);
+    if (style)     parts.push(style);
+    if (prompt)    parts.push(prompt);
+    if (context)   parts.push(`Scene: ${context}`);
     parts.push(RATIO_LABELS[ratio] || ratio);
+    if (negPrompt) parts.push(`Avoid: ${negPrompt}`);
     fullPrompt = parts.join('. ').replace(/\.+/g, '.').trim();
   }
 
@@ -65,7 +71,7 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'No prompt provided' });
   }
 
-  console.log('[generate] prompt=', fullPrompt.slice(0, 400));
+  console.log('[generate] cfg=%d temp=%.2f prompt=', cfg, temperature, fullPrompt.slice(0, 400));
 
   const modelId = MODEL_IDS[model] || MODEL_IDS.balanced;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
@@ -81,6 +87,7 @@ module.exports = async function handler(req, res) {
             contents: [{ parts: [{ text: fullPrompt }] }],
             generationConfig: {
               responseModalities: ['IMAGE'],
+              temperature,
             },
           }),
         });
