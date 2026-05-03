@@ -145,34 +145,62 @@ module.exports = async function handler(req, res) {
   const temperature = Math.max(0.2, Math.min(1.0, 1.0 - ((cfg - 1) / 19) * 0.8));
 
   // ─── Ethnicity-swap path ────────────────────────────────────────────────────
-  // Concise, structured TRANSFORM prompt — no style injection.
+  // Goal: change only face / skin — everything geometric must survive intact.
+  //
+  // Divergence sweet-spot for identity swaps: 40–55.
+  //   • Too low  (<35): not enough permission to re-render skin/features.
+  //   • Too high (>60): model discards composition and invents a new pose.
+  // We clamp user slider to this range server-side regardless of what the UI sends.
 
   if (locEnabled && locRegion) {
-    const eth = ethnicityLabel(locRegion);
+    const eth    = ethnicityLabel(locRegion);
+    const negTxt = negativeTerms(eth);
 
-    const parts = [
-      `TRANSFORM: Re-render subject as ${eth}.`,
-      `STRICT STRUCTURAL LOCK: Maintain identical head-tilt, gaze-vector, and facial geometry. Keep original clothing, hair silhouette, and background.`,
-      `RENDER SPECS: Authentic ${eth} bone structure and skin tone. Blend face seamlessly. Match original film grain, focal depth, and ambient lighting exactly. Do not add artificial sharpness or smoothing.`,
-    ];
-    if (prompt)  parts.push(prompt);
-    if (context) parts.push(context);
+    // Clamp divergence: floor 40 (enough to change features), ceiling 55 (pose safe).
+    const effectiveDivergence = Math.min(Math.max(divergence, 40), 55);
+
+    // Lead line — ethnicity is the PRIMARY instruction, but pose is named explicitly.
+    const leadLine =
+      `TRANSFORM this portrait: re-render the subject as a ${eth} person ` +
+      `with the EXACT SAME head tilt, camera angle, eye gaze direction, and facial expression ` +
+      `as the reference image. ` +
+      `Render authentic ${eth} skin tone, facial bone structure, eye shape, and nose shape ` +
+      `with photorealistic accuracy.`;
+
+    // Preserve line — call out every geometric element individually.
+    const preserveLine =
+      `STRUCTURAL LOCK — do not alter any of the following: ` +
+      `the head rotation angle, jaw tilt, shoulder position, eye gaze vector, ` +
+      `brow height, mouth pose, neck angle, and body framing. ` +
+      `Keep identical: clothing, hairstyle silhouette, background, and overall composition.`;
+
+    // Photo-realism / grain matching — prevents the "too sharp face on grainy background" seam.
+    const grainLine =
+      `MATCH the original photo's film grain, lens bokeh, focal depth, ` +
+      `colour temperature, and ambient lighting exactly. ` +
+      `The new face must blend seamlessly with the existing background — ` +
+      `do not introduce studio-clean sharpness or artificial skin smoothing.`;
+
+    // Optional extras.
+    const extras = [];
+    if (prompt)  extras.push(prompt);
+    if (context) extras.push(context);
 
     // Text handling
     const [txtPos, txtNeg] = textHandlingPrompt(locTextHandling, locRegion);
-    if (txtPos) parts.push(txtPos);
+    if (txtPos) extras.push(txtPos);
 
-    // Negative line
-    const negTxt = negativeTerms(eth);
+    // Combine all negative instructions
     const negativeLine = [negTxt, txtNeg].filter(Boolean).join('. ');
-    if (negativeLine) parts.push(`Avoid: ${negativeLine}`);
 
-    parts.push(RATIO_LABELS[ratio] || ratio);
+    const fullPrompt = [leadLine, preserveLine, grainLine, ...extras, negativeLine, RATIO_LABELS[ratio] || ratio]
+      .filter(Boolean)
+      .join('. ')
+      .replace(/\.{2,}/g, '.')
+      .trim();
 
-    const fullPrompt = parts.join('. ').replace(/\.{2,}/g, '.').trim();
-
-    console.log('[variations:loc] ethnicity=%s cfg=%d temp=%.2f', eth, cfg, temperature);
-    console.log('[variations:loc] prompt=', fullPrompt.slice(0, 300));
+    console.log('[variations:loc] ethnicity=%s effectiveDivergence=%d (clamped 40-55)', eth, effectiveDivergence);
+    console.log('[variations:loc] prompt=', fullPrompt.slice(0, 200));
 
     const contentParts = [{ text: fullPrompt }];
     if (refImageData) {
