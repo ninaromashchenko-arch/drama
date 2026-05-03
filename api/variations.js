@@ -236,8 +236,7 @@ module.exports = async function handler(req, res) {
     ? 'use a different composition, angle, and framing from the original'
     : 'keep the same composition and framing, vary the lighting and colour palette';
 
-  // Text handling negative only (standard path doesn't need the positive instruction)
-  const [, txtNeg] = textHandlingPrompt(locTextHandling);
+  const [txtPos, txtNeg] = textHandlingPrompt(locTextHandling);
 
   const promptParts = [
     `Create a ${divergenceWord} variation.`,
@@ -245,6 +244,7 @@ module.exports = async function handler(req, res) {
   ];
   if (prompt)  promptParts.push(prompt);
   if (context) promptParts.push(`Scene context: ${context}`);
+  if (txtPos)  promptParts.push(txtPos);
   promptParts.push(RATIO_LABELS[ratio] || ratio);
   if (txtNeg)  promptParts.push(`Avoid: ${txtNeg}`);
 
