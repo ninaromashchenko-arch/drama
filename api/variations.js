@@ -129,11 +129,11 @@ module.exports = async function handler(req, res) {
     refImageData    = null,
     refImageMime    = 'image/jpeg',
     prompt          = '',
-    style           = '',
     context         = '',
     model           = 'fast',
     count           = 1,
     ratio           = '1:1',
+    cfg             = 7,
     divergence      = 35,
     varType         = 'alternatives',
     locEnabled      = false,
@@ -141,64 +141,38 @@ module.exports = async function handler(req, res) {
     locRegion       = '',
   } = req.body;
 
+  // Map cfg (1–20) to temperature (1.0–0.2). Same curve as generate.js.
+  const temperature = Math.max(0.2, Math.min(1.0, 1.0 - ((cfg - 1) / 19) * 0.8));
+
   // ─── Ethnicity-swap path ────────────────────────────────────────────────────
-  // Goal: change only face / skin — everything geometric must survive intact.
-  //
-  // Divergence sweet-spot for identity swaps: 40–55.
-  //   • Too low  (<35): not enough permission to re-render skin/features.
-  //   • Too high (>60): model discards composition and invents a new pose.
-  // We clamp user slider to this range server-side regardless of what the UI sends.
+  // Concise, structured TRANSFORM prompt — no style injection.
 
   if (locEnabled && locRegion) {
-    const eth    = ethnicityLabel(locRegion);
-    const negTxt = negativeTerms(eth);
+    const eth = ethnicityLabel(locRegion);
 
-    // Clamp divergence: floor 40 (enough to change features), ceiling 55 (pose safe).
-    const effectiveDivergence = Math.min(Math.max(divergence, 40), 55);
-
-    // Lead line — ethnicity is the PRIMARY instruction, but pose is named explicitly.
-    const leadLine =
-      `TRANSFORM this portrait: re-render the subject as a ${eth} person ` +
-      `with the EXACT SAME head tilt, camera angle, eye gaze direction, and facial expression ` +
-      `as the reference image. ` +
-      `Render authentic ${eth} skin tone, facial bone structure, eye shape, and nose shape ` +
-      `with photorealistic accuracy.`;
-
-    // Preserve line — call out every geometric element individually.
-    const preserveLine =
-      `STRUCTURAL LOCK — do not alter any of the following: ` +
-      `the head rotation angle, jaw tilt, shoulder position, eye gaze vector, ` +
-      `brow height, mouth pose, neck angle, and body framing. ` +
-      `Keep identical: clothing, hairstyle silhouette, background, and overall composition.`;
-
-    // Photo-realism / grain matching — prevents the "too sharp face on grainy background" seam.
-    const grainLine =
-      `MATCH the original photo's film grain, lens bokeh, focal depth, ` +
-      `colour temperature, and ambient lighting exactly. ` +
-      `The new face must blend seamlessly with the existing background — ` +
-      `do not introduce studio-clean sharpness or artificial skin smoothing.`;
-
-    // Optional scene/style additions.
-    const extras = [];
-    if (style)   extras.push(`Style: ${style}`);
-    if (prompt)  extras.push(prompt);
-    if (context) extras.push(context);
+    const parts = [
+      `TRANSFORM: Re-render subject as ${eth}.`,
+      `STRICT STRUCTURAL LOCK: Maintain identical head-tilt, gaze-vector, and facial geometry. Keep original clothing, hair silhouette, and background.`,
+      `RENDER SPECS: Authentic ${eth} bone structure and skin tone. Blend face seamlessly. Match original film grain, focal depth, and ambient lighting exactly. Do not add artificial sharpness or smoothing.`,
+    ];
+    if (prompt)  parts.push(prompt);
+    if (context) parts.push(context);
 
     // Text handling
     const [txtPos, txtNeg] = textHandlingPrompt(locTextHandling, locRegion);
-    if (txtPos) extras.push(txtPos);
+    if (txtPos) parts.push(txtPos);
 
-    // Combine all negative instructions
+    // Negative line
+    const negTxt = negativeTerms(eth);
     const negativeLine = [negTxt, txtNeg].filter(Boolean).join('. ');
+    if (negativeLine) parts.push(`Avoid: ${negativeLine}`);
 
-    const fullPrompt = [leadLine, preserveLine, grainLine, ...extras, negativeLine, RATIO_LABELS[ratio] || ratio]
-      .filter(Boolean)
-      .join('. ')
-      .replace(/\.{2,}/g, '.')
-      .trim();
+    parts.push(RATIO_LABELS[ratio] || ratio);
 
-    console.log('[variations:loc] ethnicity=%s effectiveDivergence=%d (clamped 40-55)', eth, effectiveDivergence);
-    console.log('[variations:loc] prompt=', fullPrompt.slice(0, 200));
+    const fullPrompt = parts.join('. ').replace(/\.{2,}/g, '.').trim();
+
+    console.log('[variations:loc] ethnicity=%s cfg=%d temp=%.2f', eth, cfg, temperature);
+    console.log('[variations:loc] prompt=', fullPrompt.slice(0, 300));
 
     const contentParts = [{ text: fullPrompt }];
     if (refImageData) {
@@ -217,7 +191,7 @@ module.exports = async function handler(req, res) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               contents: [{ parts: contentParts }],
-              generationConfig: { responseModalities: ['IMAGE'] },
+              generationConfig: { responseModalities: ['IMAGE'], temperature },
             }),
           });
           const data = await resp.json();
@@ -241,31 +215,29 @@ module.exports = async function handler(req, res) {
   }
 
   // ─── Standard variation path ────────────────────────────────────────────────
+  // No style injection — styles are a Generate-only concept.
 
-  const divergenceDesc =
-    divergence < 20 ? 'very subtle (nearly identical)'
+  const divergenceWord =
+    divergence < 20 ? 'very subtle'
     : divergence < 40 ? 'subtle'
     : divergence < 60 ? 'moderate'
-    : divergence < 80 ? 'significant'
-    : 'dramatic (highly different)';
+    : 'dramatic';
 
-  const varDesc = varType === 'alternatives'
+  const compositionLogic = varType === 'alternatives'
     ? 'use a different composition, angle, and framing from the original'
-    : 'keep the same composition and framing, vary the details, lighting, and colour palette';
+    : 'keep the same composition and framing, vary the lighting and colour palette';
+
+  // Text handling negative only (standard path doesn't need the positive instruction)
+  const [, txtNeg] = textHandlingPrompt(locTextHandling);
 
   const promptParts = [
-    `Create a ${divergenceDesc} portrait variation of this reference image.`,
-    varDesc,
+    `Create a ${divergenceWord} portrait variation.`,
+    compositionLogic,
   ];
-  if (style)   promptParts.push(`Style: ${style}`);
   if (prompt)  promptParts.push(prompt);
   if (context) promptParts.push(`Scene context: ${context}`);
   promptParts.push(RATIO_LABELS[ratio] || ratio);
-
-  // Text handling (standard path)
-  const [txtPos, txtNeg] = textHandlingPrompt(locTextHandling);
-  if (txtPos) promptParts.push(txtPos);
-  if (txtNeg) promptParts.push(`Avoid: ${txtNeg}`);
+  if (txtNeg)  promptParts.push(`Avoid: ${txtNeg}`);
 
   const fullPrompt = promptParts.join('. ').replace(/\.+/g, '.').trim();
 
@@ -277,6 +249,9 @@ module.exports = async function handler(req, res) {
   const modelId = MODEL_IDS[model] || MODEL_IDS.fast;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
+  console.log('[variations] divergence=%d cfg=%d temp=%.2f', divergence, cfg, temperature);
+  console.log('[variations] prompt=', fullPrompt.slice(0, 300));
+
   try {
     const n = Math.min(Math.max(1, count), 4);
     const images = await Promise.all(
@@ -286,7 +261,7 @@ module.exports = async function handler(req, res) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: contentParts }],
-            generationConfig: { responseModalities: ['IMAGE'] },
+            generationConfig: { responseModalities: ['IMAGE'], temperature },
           }),
         });
         const data = await resp.json();
