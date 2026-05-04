@@ -374,13 +374,6 @@ const Sidebar=({state,set})=>{
         <button onClick={()=>state.generate()} disabled={state.generating} style={{width:'100%',padding:'12px',borderRadius:9,background:state.generating?'var(--bg-3)':'linear-gradient(180deg,#8eb4ff,#5e8cff)',color:state.generating?'var(--text-3)':'#0a0e1c',fontSize:13.5,fontWeight:600,letterSpacing:'-.01em',display:'flex',alignItems:'center',justifyContent:'center',gap:7,cursor:state.generating?'wait':'pointer',boxShadow:state.generating?'none':'0 1px 0 #ffffff40 inset,0 8px 24px #5e8cff30',transition:'all .15s'}}>
           {state.generating?(<><span style={{width:12,height:12,border:'2px solid #ffffff30',borderTopColor:'var(--text-2)',borderRadius:'50%',display:'inline-block',animation:'spin .7s linear infinite'}}/> Generating…</>):(<><Icon.Sparkle size={13} sw={2}/> Generate {state.count} {state.mode==='variations'?'Variation':'Image'}{state.count>1?'s':''}</>)}
         </button>
-        <div style={{display:'flex',justifyContent:'center',gap:8,marginTop:9}}>
-          <span className="mono" style={{fontSize:10,color:'var(--text-3)'}}>−{cost} credits</span>
-          <span style={{fontSize:10,color:'var(--text-4)'}}>·</span>
-          <span className="mono" style={{fontSize:10,color:'var(--text-3)'}}>~{Math.round(state.count*2.5)}s</span>
-          <span style={{fontSize:10,color:'var(--text-4)'}}>·</span>
-          <span className="mono" style={{fontSize:10,color:'var(--text-3)'}}>{state.credits} left</span>
-        </div>
         </>);})()}
       </div>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
@@ -394,6 +387,11 @@ window.Sidebar=Sidebar;
 <script type="text/babel">
 const ratioToAspect=r=>({'1:1':'1/1','16:9':'16/9','9:16':'9/16','4:3':'4/3','3:4':'3/4'}[r]||'1/1');
 const mimeToExt=m=>m==='image/jpeg'||m==='image/jpg'?'jpg':m==='image/webp'?'webp':'png';
+// Download multiple images sequentially with a small stagger to avoid browser blocking
+const downloadImages=imgs=>imgs.forEach((img,i)=>setTimeout(()=>{
+  const src=`data:${img.mimeType||'image/png'};base64,${img.data}`;
+  const a=document.createElement('a');a.href=src;a.download=`drama-pics-${img.seed||i}.${mimeToExt(img.mimeType)}`;a.click();
+},i*350));
 const iconBtnStyle=active=>({width:24,height:24,borderRadius:5,background:active?'var(--accent-soft)':'#00000080',border:'1px solid',borderColor:active?'var(--accent-line)':'#ffffff20',color:active?'var(--accent)':'#fff',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center'});
 
 const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRemove,onExpand,original})=>{
@@ -423,8 +421,7 @@ const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRe
         )}
 
         {!original&&(
-          <div style={{position:'absolute',left:0,right:0,bottom:0,padding:'24px 10px 10px',background:'linear-gradient(to top,#000000bb,transparent)',display:'flex',alignItems:'flex-end',justifyContent:'space-between',opacity:hover?1:0,transition:'opacity .15s'}}>
-            <span className="mono" style={{fontSize:9.5,color:'#ffffffaa'}}>seed {image.seed}</span>
+          <div style={{position:'absolute',left:0,right:0,bottom:0,padding:'24px 10px 10px',background:'linear-gradient(to top,#000000bb,transparent)',display:'flex',alignItems:'flex-end',justifyContent:'flex-end',opacity:hover?1:0,transition:'opacity .15s'}}>
             <div style={{display:'flex',gap:4}}>
               <button onClick={onIterate} title="Iterate from this" style={{...iconBtnStyle(false),background:'var(--accent)',color:'#0a0e1c',border:'1px solid var(--accent)',padding:'0 8px',width:'auto',gap:4,display:'flex',alignItems:'center',fontSize:10.5,fontWeight:600}}><Icon.Branch size={11} sw={2}/>Iterate</button>
               <button title="Download" onClick={()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-pics-${image.seed}.${mimeToExt(image.mimeType)}`;a.click();}} style={iconBtnStyle(false)}><Icon.Download size={12}/></button>
@@ -608,7 +605,7 @@ const Results=({state,set})=>{
           <ViewToggle value={state.view} onChange={v=>set({view:v})}/>
           <div style={{width:1,height:18,background:'var(--line-1)',margin:'0 4px'}}/>
           <ToolbarBtn onClick={()=>state.regenAll()} icon={<Icon.Refresh size={12}/>}>Regenerate all</ToolbarBtn>
-          <ToolbarBtn icon={<Icon.Download size={12}/>}>Save all</ToolbarBtn>
+          <ToolbarBtn onClick={()=>downloadImages(results)} icon={<Icon.Download size={12}/>}>Save all</ToolbarBtn>
           <ToolbarBtn onClick={()=>set({results:[],selected:[],error:null})} icon={<Icon.Trash size={12}/>} danger>Clear</ToolbarBtn>
         </div>
       </div>
@@ -663,7 +660,7 @@ const Results=({state,set})=>{
           <span style={{fontSize:12.5,color:'var(--text-1)'}}><span className="mono" style={{color:'var(--accent)',fontWeight:600}}>{state.selected.length}</span> selected</span>
           <button onClick={toggleAll} style={{fontSize:11.5,color:'var(--text-3)',padding:0}}>{state.selected.length===results.length?'Clear':'Select all'}</button>
           <div style={{width:1,height:18,background:'var(--line-1)'}}/>
-          <button style={batchBtn}><Icon.Download size={12}/> Save</button>
+          <button onClick={()=>downloadImages(results.filter(r=>state.selected.includes(r.id)))} style={batchBtn}><Icon.Download size={12}/> Save</button>
           <button onClick={()=>{if(state.selected.length===1){const img=results.find(r=>r.id===state.selected[0]);if(img)state.iterateFrom(img);}}} style={batchBtn}><Icon.Branch size={12}/> Iterate</button>
           <button onClick={()=>set({results:results.map(r=>state.selected.includes(r.id)?{...r,pinned:true}:r)})} style={batchBtn}><Icon.Star size={12}/> Pin</button>
           <button onClick={removeSelected} style={{...batchBtn,color:'var(--danger)'}}><Icon.Trash size={12}/> Delete</button>
@@ -1037,17 +1034,11 @@ const App=()=>{
           })}
         </nav>
         <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:10}}>
-          {/* Credits badge */}
-          <div style={{display:'flex',alignItems:'center',gap:6,fontSize:11.5,padding:'5px 11px',borderRadius:999,background:state.credits<10?'#f871710f':'var(--bg-2)',border:'1px solid',borderColor:state.credits<10?'#f8717155':'var(--line-1)',color:state.credits<10?'var(--danger)':'var(--text-2)',transition:'all .3s'}}>
-            <span style={{width:6,height:6,borderRadius:'50%',background:state.credits<10?'var(--danger)':'var(--warn)',boxShadow:state.credits<10?'0 0 8px #f8717180':'0 0 8px #fbbf2480'}}/>
-            <span className="mono" style={{fontSize:10.5}}>{state.credits} credits</span>
-          </div>
           {/* Model badge */}
           <div style={{display:'flex',alignItems:'center',gap:7,fontSize:11.5,color:'var(--text-2)',padding:'5px 11px',borderRadius:999,background:'var(--bg-2)',border:'1px solid var(--line-1)'}}>
             <span style={{width:6,height:6,borderRadius:'50%',background:'var(--success)',boxShadow:'0 0 8px #4ade8080'}}/>
             <span className="mono" style={{fontSize:10.5}}>{state.model==='pro'?'Nano Banana Pro':'Nano Banana 2'} · {state.model==='pro'?'Pro':'Fast'}</span>
           </div>
-          <div style={{width:28,height:28,borderRadius:'50%',background:'linear-gradient(135deg,#fbbf24,#f87171)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600,color:'#0a0e1c'}}>JM</div>
         </div>
       </header>
 
