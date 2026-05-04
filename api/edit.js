@@ -1,9 +1,8 @@
 // api/edit.js — targeted text-instruction edits on an existing image
 
 const MODEL_IDS = {
-  fast:     'gemini-3.1-flash-image-preview',
-  balanced: 'gemini-3.1-flash-image-preview',
-  pro:      'gemini-3-pro-image-preview',
+  fast: 'gemini-3.1-flash-image-preview',
+  pro:  'gemini-3-pro-image-preview',
 };
 
 module.exports = async function handler(req, res) {
@@ -20,7 +19,7 @@ module.exports = async function handler(req, res) {
     imageData  = null,
     imageMime  = 'image/png',
     instruction = '',
-    model      = 'balanced',
+    model      = 'fast',
   } = req.body;
 
   if (!imageData) {
@@ -37,7 +36,7 @@ module.exports = async function handler(req, res) {
 
   console.log('[edit] model=%s instruction=', model, instruction.slice(0, 200));
 
-  const modelId = MODEL_IDS[model] || MODEL_IDS.balanced;
+  const modelId = MODEL_IDS[model] || MODEL_IDS.fast;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
   try {

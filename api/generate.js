@@ -1,9 +1,8 @@
 // api/generate.js — text-to-image via Gemini image models
 
 const MODEL_IDS = {
-  fast:     'gemini-3.1-flash-image-preview',
-  balanced: 'gemini-3.1-flash-image-preview',
-  pro:      'gemini-3-pro-image-preview',
+  fast: 'gemini-3.1-flash-image-preview',
+  pro:  'gemini-3-pro-image-preview',
 };
 
 const RATIO_LABELS = {
@@ -54,6 +53,7 @@ module.exports = async function handler(req, res) {
     else if (locTextHandling === 'localize') parts.push(`use culturally appropriate visual elements for ${locRegion}`);
     else if (locTextHandling === 'remove')   parts.push('no visible text in the image');
     parts.push(RATIO_LABELS[ratio] || ratio);
+    if (negPrompt) parts.push(`Avoid: ${negPrompt}`);
     fullPrompt = parts.join('. ').replace(/\.+/g, '.').trim();
 
   } else {
@@ -73,7 +73,7 @@ module.exports = async function handler(req, res) {
 
   console.log('[generate] cfg=%d temp=%.2f prompt=', cfg, temperature, fullPrompt.slice(0, 400));
 
-  const modelId = MODEL_IDS[model] || MODEL_IDS.balanced;
+  const modelId = MODEL_IDS[model] || MODEL_IDS.fast;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
   try {

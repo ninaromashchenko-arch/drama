@@ -174,6 +174,15 @@ function processImageFile(file){
   });
 }
 
+const STYLE_MAP=window.STYLE_MAP=[
+  {id:'closeup',  label:'Face Close-Up',     prompt:'natural candid face photo, smartphone camera aesthetic, wide-angle lens distortion, f/8 aperture, deep depth of field, background partially in focus, unposed expression, accidental lighting, digital sharpening, authentic skin imperfections'},
+  {id:'emotional',label:'Emotional Still',   prompt:'candid emotional moment, documentary portrait, raw unguarded expression, natural ambient light, photojournalistic'},
+  {id:'phoneshot',label:'Phone Screenshot',  prompt:'smartphone screenshot aesthetic, status bar overlay, notification UI elements, screen glare, mobile device framing'},
+  {id:'cctv',     label:'CCTV / Security',   prompt:'Low-resolution high-angle surveillance footage, heavy digital noise, monochrome black and white, horizontal scan lines, overlaid technical date/time stamps in the corner'},
+  {id:'ugc',      label:'Smartphone Casual',  prompt:'casual mobile phone snapshot, amateur photography, unprocessed, wide focal length, f/8 aperture, flat mobile sensor depth'},
+  {id:'docs',     label:'Docs',               prompt:'close-up smartphone photograph of a printed paper legal document. Includes bold official rubber stamps in black and red ink, multiple pen signatures, handwritten scribbled annotations, a red certified copy marker. realistic paper texture. clear, non-professional serif typography, practical overhead desk lighting with slight paper glare'},
+];
+
 const Sidebar=({state,set})=>{
   const[negOpen,setNegOpen]=React.useState(false);
   const[locOpen,setLocOpen]=React.useState(false);
@@ -200,14 +209,6 @@ const Sidebar=({state,set})=>{
     else set({locRegion:label});
   };
 
-  const STYLE_MAP=window.STYLE_MAP=[
-    {id:'closeup',  label:'Face Close-Up',     prompt:'natural candid face photo, smartphone camera aesthetic, wide-angle lens distortion, f/8 aperture, deep depth of field, background partially in focus, unposed expression, accidental lighting, digital sharpening, authentic skin imperfections'},
-    {id:'emotional',label:'Emotional Still',   prompt:'candid emotional moment, documentary portrait, raw unguarded expression, natural ambient light, photojournalistic'},
-    {id:'phoneshot',label:'Phone Screenshot',  prompt:'smartphone screenshot aesthetic, status bar overlay, notification UI elements, screen glare, mobile device framing'},
-    {id:'cctv',     label:'CCTV / Security',   prompt:'Low-resolution high-angle surveillance footage, heavy digital noise, monochrome black and white, horizontal scan lines, overlaid technical date/time stamps in the corner'},
-    {id:'ugc',      label:'Smartphone Casual',  prompt:'casual mobile phone snapshot, amateur photography, unprocessed, wide focal length, f/8 aperture, flat mobile sensor depth'},
-    {id:'docs',     label:'Docs',               prompt:'close-up smartphone photograph of a printed paper legal document. Includes bold official rubber stamps in black and red ink, multiple pen signatures, handwritten scribbled annotations, a red certified copy marker. realistic paper texture. clear, non-professional serif typography, practical overhead desk lighting with slight paper glare'},
-  ];
   const ratios=SUPPORTED_RATIOS;
 
   return(
@@ -369,16 +370,16 @@ const Sidebar=({state,set})=>{
             <button onClick={()=>set({count:Math.min(4,state.count+1)})} style={{width:26,height:26,borderRadius:6,border:'1px solid var(--line-1)',background:'var(--bg-2)',color:'var(--text-2)',display:'flex',alignItems:'center',justifyContent:'center'}}><Icon.Plus size={11} sw={2}/></button>
           </div>
         </div>
-        {(()=>{const cost=state.count*3;const notEnough=state.credits<cost&&!state.generating;return(<>
-        <button onClick={()=>state.generate()} disabled={state.generating||notEnough} style={{width:'100%',padding:'12px',borderRadius:9,background:state.generating?'var(--bg-3)':notEnough?'var(--bg-3)':'linear-gradient(180deg,#8eb4ff,#5e8cff)',color:state.generating||notEnough?'var(--text-3)':'#0a0e1c',fontSize:13.5,fontWeight:600,letterSpacing:'-.01em',display:'flex',alignItems:'center',justifyContent:'center',gap:7,cursor:state.generating?'wait':notEnough?'not-allowed':'pointer',boxShadow:state.generating||notEnough?'none':'0 1px 0 #ffffff40 inset,0 8px 24px #5e8cff30',transition:'all .15s'}}>
-          {state.generating?(<><span style={{width:12,height:12,border:'2px solid #ffffff30',borderTopColor:'var(--text-2)',borderRadius:'50%',display:'inline-block',animation:'spin .7s linear infinite'}}/> Generating…</>):notEnough?(<><Icon.AlertCircle size={13}/> Not enough credits</>):(<><Icon.Sparkle size={13} sw={2}/> Generate {state.count} {state.mode==='variations'?'Variation':'Image'}{state.count>1?'s':''}</>)}
+        {(()=>{const cost=state.count*3;return(<>
+        <button onClick={()=>state.generate()} disabled={state.generating} style={{width:'100%',padding:'12px',borderRadius:9,background:state.generating?'var(--bg-3)':'linear-gradient(180deg,#8eb4ff,#5e8cff)',color:state.generating?'var(--text-3)':'#0a0e1c',fontSize:13.5,fontWeight:600,letterSpacing:'-.01em',display:'flex',alignItems:'center',justifyContent:'center',gap:7,cursor:state.generating?'wait':'pointer',boxShadow:state.generating?'none':'0 1px 0 #ffffff40 inset,0 8px 24px #5e8cff30',transition:'all .15s'}}>
+          {state.generating?(<><span style={{width:12,height:12,border:'2px solid #ffffff30',borderTopColor:'var(--text-2)',borderRadius:'50%',display:'inline-block',animation:'spin .7s linear infinite'}}/> Generating…</>):(<><Icon.Sparkle size={13} sw={2}/> Generate {state.count} {state.mode==='variations'?'Variation':'Image'}{state.count>1?'s':''}</>)}
         </button>
         <div style={{display:'flex',justifyContent:'center',gap:8,marginTop:9}}>
-          <span className="mono" style={{fontSize:10,color:notEnough?'var(--danger)':'var(--text-3)'}}>−{cost} credits</span>
+          <span className="mono" style={{fontSize:10,color:'var(--text-3)'}}>−{cost} credits</span>
           <span style={{fontSize:10,color:'var(--text-4)'}}>·</span>
           <span className="mono" style={{fontSize:10,color:'var(--text-3)'}}>~{Math.round(state.count*2.5)}s</span>
           <span style={{fontSize:10,color:'var(--text-4)'}}>·</span>
-          <span className="mono" style={{fontSize:10,color:notEnough?'var(--danger)':'var(--text-3)'}}>{state.credits} left</span>
+          <span className="mono" style={{fontSize:10,color:'var(--text-3)'}}>{state.credits} left</span>
         </div>
         </>);})()}
       </div>
@@ -392,9 +393,10 @@ window.Sidebar=Sidebar;
 <!-- ═══════════ RESULTS ═══════════ -->
 <script type="text/babel">
 const ratioToAspect=r=>({'1:1':'1/1','16:9':'16/9','9:16':'9/16','4:3':'4/3','3:4':'3/4'}[r]||'1/1');
+const mimeToExt=m=>m==='image/jpeg'||m==='image/jpg'?'jpg':m==='image/webp'?'webp':'png';
 const iconBtnStyle=active=>({width:24,height:24,borderRadius:5,background:active?'var(--accent-soft)':'#00000080',border:'1px solid',borderColor:active?'var(--accent-line)':'#ffffff20',color:active?'var(--accent)':'#fff',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center'});
 
-const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRemove,onCompare,onExpand,original})=>{
+const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRemove,onExpand,original})=>{
   const[hover,setHover]=React.useState(false);
   const[imgError,setImgError]=React.useState(false);
   const src=image.data?`data:${image.mimeType||'image/png'};base64,${image.data}`:null;
@@ -425,7 +427,7 @@ const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRe
             <span className="mono" style={{fontSize:9.5,color:'#ffffffaa'}}>seed {image.seed}</span>
             <div style={{display:'flex',gap:4}}>
               <button onClick={onIterate} title="Iterate from this" style={{...iconBtnStyle(false),background:'var(--accent)',color:'#0a0e1c',border:'1px solid var(--accent)',padding:'0 8px',width:'auto',gap:4,display:'flex',alignItems:'center',fontSize:10.5,fontWeight:600}}><Icon.Branch size={11} sw={2}/>Iterate</button>
-              <button title="Download" onClick={()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-pics-${image.seed}.png`;a.click();}} style={iconBtnStyle(false)}><Icon.Download size={12}/></button>
+              <button title="Download" onClick={()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-pics-${image.seed}.${mimeToExt(image.mimeType)}`;a.click();}} style={iconBtnStyle(false)}><Icon.Download size={12}/></button>
               <button onClick={onRemove} title="Delete" style={iconBtnStyle(false)}><Icon.Trash size={12}/></button>
             </div>
           </div>
@@ -470,7 +472,7 @@ const LightboxModal=({image,onClose,onUseAsRef,onDelete,onSaveEdit,model='fast'}
     return()=>window.removeEventListener('keydown',h);
   },[onClose]);
 
-  const download=()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-edit-${displayed.seed||Date.now()}.png`;a.click();};
+  const download=()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-edit-${displayed.seed||Date.now()}.${mimeToExt(displayed.mimeType)}`;a.click();};
 
   const runEdit=async()=>{
     if(!editInstruction.trim()||!image.data)return;
@@ -582,7 +584,7 @@ const ToolbarBtn=({children,icon,onClick,danger})=>{
 const Grid=({state,results,generating,ratio,select,togglePin,remove,set,view,onExpand})=>{
   const cols=view==='compact'?'repeat(4,1fr)':view==='wide'?'repeat(2,1fr)':'repeat(3,1fr)';
   return(<div style={{display:'grid',gridTemplateColumns:cols,gap:12,alignContent:'start'}}>
-    {results.map(img=>(<ImageCard key={img.id} image={img} ratio={ratio} selected={state.selected.includes(img.id)} onSelect={()=>select(img.id)} onPin={()=>togglePin(img.id)} onSaveToLib={state.saveToLibrary} onRemove={()=>remove(img.id)} onIterate={()=>state.iterateFrom(img)} onCompare={()=>{}} onExpand={onExpand}/>))}
+    {results.map(img=>(<ImageCard key={img.id} image={img} ratio={ratio} selected={state.selected.includes(img.id)} onSelect={()=>select(img.id)} onPin={()=>togglePin(img.id)} onSaveToLib={state.saveToLibrary} onRemove={()=>remove(img.id)} onIterate={()=>state.iterateFrom(img)} onExpand={onExpand}/>))}
     {generating&&Array.from({length:state.count}).map((_,i)=>(<SkeletonCard key={'sk'+i} ratio={ratio}/>))}
   </div>);
 };
@@ -698,7 +700,7 @@ const MediaCard=({item,onUseAsRef,onSave,onRemove,onExpand,inLibrary=false,saveL
             <button onClick={()=>onUseAsRef(item)} style={{flex:1,padding:'6px',borderRadius:6,background:'var(--accent)',color:'#0a0e1c',fontSize:11,fontWeight:600,border:'none',cursor:'pointer'}}>Use as ref</button>
             {onSave&&<button onClick={()=>onSave(item)} title={starActive?'Already in Library':'Save to Library'} style={starStyle}><Icon.Star size={12} fill={starActive?'currentColor':'none'}/></button>}
             {onRemove&&<button onClick={()=>onRemove(item)} style={{padding:'6px 8px',borderRadius:6,background:'#f871710f',color:'var(--danger)',fontSize:11,border:'1px solid #f8717155',cursor:'pointer'}}><Icon.Trash size={12}/></button>}
-            <button title="Download" onClick={()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-${item.id||Date.now()}.png`;a.click();}} style={{...iconBtnStyle(false),background:'#00000060'}}><Icon.Download size={12}/></button>
+            <button title="Download" onClick={()=>{if(!src)return;const a=document.createElement('a');a.href=src;a.download=`drama-${item.id||Date.now()}.${mimeToExt(item.mimeType)}`;a.click();}} style={{...iconBtnStyle(false),background:'#00000060'}}><Icon.Download size={12}/></button>
           </div>
         </div>
       </div>
@@ -944,7 +946,7 @@ const App=()=>{
 
   const saveHistory=(images,body,snap)=>{
     // Persist image blobs to IndexedDB (no size limit)
-    images.forEach(img=>{ try{window.IDB.put(img.id,img.data,img.mimeType);}catch(e){} });
+    images.forEach(img=>{ window.IDB.put(img.id,img.data,img.mimeType).catch(e=>console.warn('[IDB]',e)); });
     const entries=images.map(img=>({...img,label:body.context||body.prompt||body.style||'',prompt:body.prompt||'',context:body.context||'',model:snap.model,mode:snap.mode,timestamp:Date.now()}));
     setState(prev=>{
       const next=[...entries,...prev.history].slice(0,24);

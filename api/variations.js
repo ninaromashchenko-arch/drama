@@ -3,9 +3,8 @@
 //                pro  → gemini-3-pro-image-preview    (Nano Banana Pro)
 
 const MODEL_IDS = {
-  fast:     'gemini-3.1-flash-image-preview',
-  balanced: 'gemini-3.1-flash-image-preview',
-  pro:      'gemini-3-pro-image-preview',
+  fast: 'gemini-3.1-flash-image-preview',
+  pro:  'gemini-3-pro-image-preview',
 };
 
 const RATIO_LABELS = {
