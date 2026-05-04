@@ -845,7 +845,7 @@ const FONT_PAIRS={
   'fraunces':        {ui:'Inter',        display:'Fraunces',        mono:'JetBrains Mono',w:500,t:'-0.02em', label:'Fraunces / Inter'},
 };
 
-const App=()=>{
+const App=({onLogout})=>{
   const[tweaks,setTweak]=useTweaks(window.TWEAK_DEFAULTS);
 
   React.useEffect(()=>{
@@ -1039,6 +1039,7 @@ const App=()=>{
             <span style={{width:6,height:6,borderRadius:'50%',background:'var(--success)',boxShadow:'0 0 8px #4ade8080'}}/>
             <span className="mono" style={{fontSize:10.5}}>{state.model==='pro'?'Nano Banana Pro':'Nano Banana 2'} · {state.model==='pro'?'Pro':'Fast'}</span>
           </div>
+          {onLogout&&<button onClick={onLogout} style={{fontSize:11,color:'var(--text-3)',padding:'5px 11px',borderRadius:6,border:'1px solid var(--line-1)',background:'var(--bg-2)',cursor:'pointer'}}>Log out</button>}
         </div>
       </header>
 
@@ -1056,6 +1057,60 @@ const App=()=>{
       </TweaksPanel>
     </div>
   );
+};
+
+const LoginScreen=({onAuth})=>{
+  const[pw,setPw]=React.useState('');
+  const[err,setErr]=React.useState('');
+  const[loading,setLoading]=React.useState(false);
+  const submit=async()=>{
+    if(!pw.trim()||loading)return;
+    setLoading(true);setErr('');
+    try{
+      const res=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+      const data=await res.json();
+      if(data.ok){onAuth();}
+      else{setErr(data.error||'Wrong password');}
+    }catch(e){setErr('Connection error — try again');}
+    finally{setLoading(false);}
+  };
+  return(
+    <div style={{height:'100vh',background:'var(--bg-0)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{width:320,display:'flex',flexDirection:'column',alignItems:'center',gap:24}}>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{width:32,height:32,borderRadius:9,background:'linear-gradient(135deg,#7aa2ff,#c084fc)',display:'flex',alignItems:'center',justifyContent:'center',color:'#0a0e1c'}}>
+            <Icon.Sparkle size={16} sw={2.5}/>
+          </div>
+          <span className="display" style={{fontSize:22,color:'var(--text-1)'}}>Drama Pics</span>
+        </div>
+        <div style={{width:'100%',background:'var(--bg-1)',border:'1px solid var(--line-1)',borderRadius:14,padding:24,display:'flex',flexDirection:'column',gap:14}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:600,color:'var(--text-1)',marginBottom:4}}>Enter password</div>
+            <div style={{fontSize:12.5,color:'var(--text-3)'}}>This workspace is private.</div>
+          </div>
+          <input type="password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} placeholder="Password" autoFocus
+            style={{width:'100%',background:'var(--bg-2)',border:'1px solid var(--line-1)',borderRadius:8,color:'var(--text-1)',fontSize:13,padding:'10px 13px',outline:'none',caretColor:'var(--accent)',fontFamily:'inherit'}}
+            onFocus={e=>e.target.style.borderColor='var(--accent-line)'} onBlur={e=>e.target.style.borderColor='var(--line-1)'}/>
+          {err&&<div style={{fontSize:12,color:'var(--danger)',padding:'7px 11px',borderRadius:7,background:'#f871710f',border:'1px solid #f8717130'}}>{err}</div>}
+          <button onClick={submit} disabled={loading||!pw.trim()} style={{width:'100%',padding:'11px',borderRadius:8,background:loading||!pw.trim()?'var(--bg-3)':'linear-gradient(180deg,#8eb4ff,#5e8cff)',color:loading||!pw.trim()?'var(--text-3)':'#0a0e1c',fontSize:13,fontWeight:600,border:'none',cursor:loading||!pw.trim()?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:7,transition:'all .15s',boxShadow:loading||!pw.trim()?'none':'0 1px 0 #ffffff40 inset,0 6px 20px #5e8cff30',fontFamily:'inherit'}}>
+            {loading?<><span style={{width:11,height:11,border:'2px solid #ffffff30',borderTopColor:'var(--text-2)',borderRadius:'50%',display:'inline-block',animation:'spin .7s linear infinite'}}/> Checking…</>:'Continue →'}
+          </button>
+        </div>
+      </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+};
+
+const AuthWrapper=()=>{
+  const[authed,setAuthed]=React.useState(null);
+  React.useEffect(()=>{
+    const ok=document.cookie.split(';').some(c=>c.trim().startsWith('drama_auth='));
+    setAuthed(ok);
+  },[]);
+  if(authed===null)return null;
+  if(!authed)return<LoginScreen onAuth={()=>setAuthed(true)}/>;
+  return<App onLogout={()=>{document.cookie='drama_auth=; Path=/; Max-Age=0; SameSite=Strict';setAuthed(false);}}/>;
 };
 
 class ErrorBoundary extends React.Component{
@@ -1078,7 +1133,7 @@ class ErrorBoundary extends React.Component{
   }
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><App/></ErrorBoundary>);
+ReactDOM.createRoot(document.getElementById('root')).render(<ErrorBoundary><AuthWrapper/></ErrorBoundary>);
 </script>
 </body>
 </html>
