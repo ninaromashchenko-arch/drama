@@ -398,9 +398,10 @@ const ImageCard=({image,ratio,selected,onSelect,onIterate,onPin,onSaveToLib,onRe
   const[hover,setHover]=React.useState(false);
   const[imgError,setImgError]=React.useState(false);
   const src=image.data?`data:${image.mimeType||'image/png'};base64,${image.data}`:null;
+  const displayRatio=image.ratio||ratio;
   return(
     <div onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)} style={{position:'relative',borderRadius:10,overflow:'hidden',border:'1px solid',borderColor:selected?'var(--accent-line)':'var(--line-1)',background:'var(--bg-2)',boxShadow:selected?'0 0 0 1px var(--accent-line),0 0 32px #7aa2ff20':'none',transition:'border-color .15s,box-shadow .15s'}}>
-      <div style={{aspectRatio:ratioToAspect(ratio),background:imgError||!src?'linear-gradient(135deg,#1f2a4f,#4a3270)':'#000',position:'relative',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',cursor:onExpand?'zoom-in':'default'}}>
+      <div style={{aspectRatio:ratioToAspect(displayRatio),background:imgError||!src?'linear-gradient(135deg,#1f2a4f,#4a3270)':'#000',position:'relative',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',cursor:onExpand?'zoom-in':'default'}}>
         {src&&!imgError?(
           <img src={src} alt="Generated" onError={()=>setImgError(true)} onClick={onExpand?e=>{e.stopPropagation();onExpand(image);}:undefined} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
         ):(
@@ -978,7 +979,8 @@ const App=({onLogout})=>{
         body.varType=state.varType;
       }
       const snap={model:state.model,mode:state.mode};
-      const images=await callAPI(isVar?'/api/variations':'/api/generate',body);
+      const raw=await callAPI(isVar?'/api/variations':'/api/generate',body);
+      const images=raw.map(img=>({...img,ratio:state.ratio}));
       const cost=state.count*3;
       saveHistory(images,body,snap);
       set({results:images,generating:false,credits:Math.max(0,state.credits-cost)});
@@ -997,7 +999,8 @@ const App=({onLogout})=>{
     try{
       const body={...baseBody(state),refImageData:img.data,refImageMime:img.mimeType,divergence:newDiv,varType:state.varType};
       const snap={model:state.model,mode:'variations'};
-      const images=await callAPI('/api/variations',body);
+      const raw=await callAPI('/api/variations',body);
+      const images=raw.map(img=>({...img,ratio:state.ratio}));
       const cost=state.count*3;
       saveHistory(images,body,snap);
       set({results:images,generating:false,credits:Math.max(0,state.credits-cost)});
